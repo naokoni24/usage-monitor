@@ -1,0 +1,14 @@
+# Cloudflare Tunnel config example for AI Usage Monitor.
+# Copy to ~/.cloudflared/config.yml and fill in your own tunnel ID / hostname.
+# See docs/SETUP_CLOUDFLARE_TUNNEL.md for the full setup walkthrough.
+
+tunnel: <YOUR_TUNNEL_ID>
+credentials-file: /Users/<you>/.cloudflared/<YOUR_TUNNEL_ID>.json
+
+ingress:
+  # Public hostname that will proxy to the local Next.js server.
+  - hostname: ai-usage.example.com
+    service: http://localhost:3000
+
+  # Catch-all: required as the last rule, Cloudflare rejects configs without one.
+  - service: http_status:404

@@ -1,0 +1,51 @@
+{
+  "name": "usage-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "format": "prettier --write .",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx --env-file=.env.local scripts/migrate.ts",
+    "sync": "tsx --env-file=.env.local --conditions=react-server scripts/sync.ts",
+    "push:test": "tsx --env-file=.env.local --conditions=react-server scripts/push-test.ts",
+    "service:install": "bash scripts/service-install.sh",
+    "service:start": "bash scripts/service-start.sh",
+    "service:stop": "bash scripts/service-stop.sh",
+    "service:status": "bash scripts/service-status.sh",
+    "service:uninstall": "bash scripts/service-uninstall.sh"
+  },
+  "dependencies": {
+    "@google-cloud/bigquery": "^8.3.1",
+    "better-sqlite3": "^12.11.1",
+    "decimal.js": "^10.6.0",
+    "drizzle-orm": "^0.45.2",
+    "next": "16.2.10",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "server-only": "^0.0.1",
+    "web-push": "^3.6.7",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/web-push": "^3.6.4",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "prettier": "^3.9.4",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.0",
+    "typescript": "^5",
+    "vitest": "^4.1.10"
+  }
+}

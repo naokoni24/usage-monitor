@@ -1,0 +1,271 @@
+openapi: 3.0.3
+info:
+  title: AI Usage Monitor API
+  version: 0.1.0
+  description: >
+    Personal dashboard API for monitoring OpenAI / Claude / Gemini API costs and
+    Codex / Claude Code subscription usage limits. All endpoints except
+    /api/auth/login and /api/health require a valid session cookie.
+servers:
+  - url: https://ai-usage.example.com
+  - url: http://localhost:3000
+security:
+  - sessionCookie: []
+paths:
+  /api/auth/login:
+    post:
+      summary: Log in with the app password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+      responses:
+        '200': { description: OK }
+        '401': { description: Invalid password }
+        '429': { description: Too many attempts }
+  /api/auth/logout:
+    post:
+      summary: Log out (clears the session cookie)
+      responses:
+        '200': { description: OK }
+  /api/dashboard:
+    get:
+      summary: Full dashboard snapshot
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '401': { description: Unauthorized }
+  /api/usage/daily:
+    get:
+      summary: Raw daily usage rows
+      parameters:
+        - in: query
+          name: provider
+          schema: { type: string, enum: [openai, anthropic, gemini, codex, claude-code] }
+        - in: query
+          name: from
+          schema: { type: string, format: date }
+        - in: query
+          name: to
+          schema: { type: string, format: date }
+      responses:
+        '200': { description: OK }
+  /api/usage/monthly:
+    get:
+      summary: Monthly cost totals per provider
+      parameters:
+        - in: query
+          name: yearMonth
+          schema: { type: string, example: '2026-03' }
+      responses:
+        '200': { description: OK }
+  /api/providers/status:
+    get:
+      summary: Provider connection status
+      responses:
+        '200': { description: OK }
+  /api/sync:
+    post:
+      summary: Trigger an immediate sync of all enabled providers
+      responses:
+        '200': { description: OK }
+        '500': { description: Sync failed }
+  /api/settings:
+    get:
+      summary: Get current settings
+      responses:
+        '200': { description: OK }
+    put:
+      summary: Update settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                monthlyBudgetJpy: { type: integer }
+                fxManualRate: { type: string }
+                syncIntervalMinutes: { type: integer }
+                providerToggles:
+                  type: object
+                  additionalProperties: { type: boolean }
+                notificationRules:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      ruleType: { type: string }
+                      threshold: { type: number }
+                      enabled: { type: boolean }
+                notificationRepeatAfterDrop: { type: boolean }
+                geminiServiceFilters: { type: string }
+                mockScenario: { type: string }
+      responses:
+        '200': { description: OK }
+        '400': { description: Invalid request }
+  /api/claude-code/manual:
+    post:
+      summary: Save manually-entered Claude Code usage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fiveHourUsedPercent, weeklyUsedPercent]
+              properties:
+                fiveHourUsedPercent: { type: number, minimum: 0, maximum: 100 }
+                weeklyUsedPercent: { type: number, minimum: 0, maximum: 100 }
+                fiveHourResetAt: { type: string, format: date-time, nullable: true }
+                weeklyResetAt: { type: string, format: date-time, nullable: true }
+                memo: { type: string }
+      responses:
+        '200': { description: OK }
+        '400': { description: Invalid request }
+  /api/push/subscribe:
+    post:
+      summary: Register a Web Push subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint, keys]
+              properties:
+                endpoint: { type: string, format: uri }
+                keys:
+                  type: object
+                  required: [p256dh, auth]
+                  properties:
+                    p256dh: { type: string }
+                    auth: { type: string }
+      responses:
+        '200': { description: OK }
+    delete:
+      summary: Remove a Web Push subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint]
+              properties:
+                endpoint: { type: string, format: uri }
+      responses:
+        '200': { description: OK }
+  /api/push/test:
+    post:
+      summary: Send a test push notification to all subscriptions
+      responses:
+        '200': { description: OK }
+  /api/push/status:
+    get:
+      summary: Web Push configuration and subscription summary
+      responses:
+        '200': { description: OK }
+  /api/health:
+    get:
+      summary: Liveness check (no auth required)
+      security: []
+      responses:
+        '200': { description: OK }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: session
+  schemas:
+    ConnectionStatus:
+      type: string
+      enum: [ok, degraded, error, not_configured, disabled]
+    Confidence:
+      type: string
+      enum: [confirmed, estimated, low]
+    ProviderUsageCard:
+      type: object
+      properties:
+        provider: { type: string, enum: [openai, anthropic, gemini] }
+        enabled: { type: boolean }
+        status: { $ref: '#/components/schemas/ConnectionStatus' }
+        todayCostOriginal: { type: string, nullable: true }
+        todayCostJpy: { type: string, nullable: true }
+        monthCostOriginal: { type: string, nullable: true }
+        monthCostJpy: { type: string, nullable: true }
+        currencyOriginal: { type: string, nullable: true }
+        inputTokens: { type: integer, nullable: true }
+        outputTokens: { type: integer, nullable: true }
+        requestCount: { type: integer, nullable: true }
+        lastFetchedAt: { type: string, format: date-time, nullable: true }
+        confidence: { $ref: '#/components/schemas/Confidence' }
+        isEstimated: { type: boolean }
+        errorMessage: { type: string, nullable: true }
+    LimitWindow:
+      type: object
+      properties:
+        usedPercent: { type: number }
+        remainingPercent: { type: number }
+        resetAt: { type: string, format: date-time, nullable: true }
+    SubscriptionLimitCard:
+      type: object
+      properties:
+        provider: { type: string, enum: [codex, claude-code] }
+        enabled: { type: boolean }
+        status: { $ref: '#/components/schemas/ConnectionStatus' }
+        fiveHour: { $ref: '#/components/schemas/LimitWindow' }
+        weekly: { $ref: '#/components/schemas/LimitWindow' }
+        source: { type: string, nullable: true }
+        confidence: { $ref: '#/components/schemas/Confidence' }
+        lastFetchedAt: { type: string, format: date-time, nullable: true }
+        errorMessage: { type: string, nullable: true }
+    DashboardResponse:
+      type: object
+      properties:
+        todayTotalJpy: { type: string }
+        monthTotalJpy: { type: string }
+        monthlyBudgetJpy: { type: integer }
+        budgetUsedPercent: { type: number }
+        fxRate:
+          type: object
+          properties:
+            rate: { type: string, nullable: true }
+            source: { type: string, enum: [api, env, manual], nullable: true }
+            fetchedAt: { type: string, format: date-time, nullable: true }
+        providers:
+          type: array
+          items: { $ref: '#/components/schemas/ProviderUsageCard' }
+        subscriptionLimits:
+          type: array
+          items: { $ref: '#/components/schemas/SubscriptionLimitCard' }
+        notifications:
+          type: object
+          properties:
+            webPushEnabled: { type: boolean }
+            subscriptionCount: { type: integer }
+            recentEvents:
+              type: array
+              items:
+                type: object
+                properties:
+                  ruleType: { type: string }
+                  threshold: { type: number }
+                  message: { type: string }
+                  sentAt: { type: string, format: date-time, nullable: true }
+                  status: { type: string }
+        lastSyncedAt: { type: string, format: date-time, nullable: true }
+        warnings:
+          type: array
+          items: { type: string }
