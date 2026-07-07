@@ -32,6 +32,21 @@ export async function GET() {
     mockScenario: appSettings[APP_SETTING_KEYS.mockScenario] ?? process.env.MOCK_SCENARIO ?? 'normal',
     claudeCodeManualMemo: appSettings[APP_SETTING_KEYS.claudeCodeManualMemo] ?? '',
     useMockData: process.env.USE_MOCK_DATA === 'true',
+    // Non-secret identifiers, editable from the settings UI.
+    openaiOrganizationId: appSettings[APP_SETTING_KEYS.openaiOrganizationId] ?? process.env.OPENAI_ORGANIZATION_ID ?? '',
+    gcpBillingProjectId: appSettings[APP_SETTING_KEYS.gcpBillingProjectId] ?? process.env.GCP_BILLING_PROJECT_ID ?? '',
+    gcpBillingDataset: appSettings[APP_SETTING_KEYS.gcpBillingDataset] ?? process.env.GCP_BILLING_DATASET ?? '',
+    gcpBillingTable: appSettings[APP_SETTING_KEYS.gcpBillingTable] ?? process.env.GCP_BILLING_TABLE ?? '',
+    // Secret/credential presence only - never the values themselves.
+    secrets: {
+      openaiAdminKeyConfigured: Boolean(process.env.OPENAI_ADMIN_API_KEY),
+      anthropicAdminKeyConfigured: Boolean(process.env.ANTHROPIC_ADMIN_API_KEY),
+      googleServiceAccountConfigured: Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_JSON),
+      vapidConfigured: Boolean(
+        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT,
+      ),
+      fxApiConfigured: Boolean(process.env.FX_API_URL),
+    },
   });
 }
 
@@ -46,6 +61,10 @@ const putSchema = z.object({
   notificationRepeatAfterDrop: z.boolean().optional(),
   geminiServiceFilters: z.string().optional(),
   mockScenario: z.string().optional(),
+  openaiOrganizationId: z.string().optional(),
+  gcpBillingProjectId: z.string().optional(),
+  gcpBillingDataset: z.string().optional(),
+  gcpBillingTable: z.string().optional(),
 });
 
 export async function PUT(request: NextRequest) {
@@ -94,6 +113,18 @@ export async function PUT(request: NextRequest) {
   }
   if (data.mockScenario !== undefined) {
     await setAppSetting(APP_SETTING_KEYS.mockScenario, data.mockScenario);
+  }
+  if (data.openaiOrganizationId !== undefined) {
+    await setAppSetting(APP_SETTING_KEYS.openaiOrganizationId, data.openaiOrganizationId);
+  }
+  if (data.gcpBillingProjectId !== undefined) {
+    await setAppSetting(APP_SETTING_KEYS.gcpBillingProjectId, data.gcpBillingProjectId);
+  }
+  if (data.gcpBillingDataset !== undefined) {
+    await setAppSetting(APP_SETTING_KEYS.gcpBillingDataset, data.gcpBillingDataset);
+  }
+  if (data.gcpBillingTable !== undefined) {
+    await setAppSetting(APP_SETTING_KEYS.gcpBillingTable, data.gcpBillingTable);
   }
 
   return NextResponse.json({ ok: true });

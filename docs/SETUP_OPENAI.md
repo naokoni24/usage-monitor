@@ -3,9 +3,11 @@
 ## 必要な環境変数
 
 ```
-OPENAI_ADMIN_API_KEY=sk-admin-...
-OPENAI_ORGANIZATION_ID=org-...   # 任意 (複数組織に所属している場合に指定)
+OPENAI_ADMIN_API_KEY=sk-admin-...   # 秘密情報。.env.localのみ (UIからは入力不可)
 ```
+
+`Organization ID` (`org-...`) は秘密情報ではないため、`.env.local` の `OPENAI_ORGANIZATION_ID`
+の代わりに設定画面の「OpenAI組織設定」からも入力できる (複数組織に所属している場合のみ必要)。
 
 ## Admin API キーの取得方法
 

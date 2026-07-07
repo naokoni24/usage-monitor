@@ -16,6 +16,17 @@ interface SettingsResponse {
   mockScenario: string;
   claudeCodeManualMemo: string;
   useMockData: boolean;
+  openaiOrganizationId: string;
+  gcpBillingProjectId: string;
+  gcpBillingDataset: string;
+  gcpBillingTable: string;
+  secrets: {
+    openaiAdminKeyConfigured: boolean;
+    anthropicAdminKeyConfigured: boolean;
+    googleServiceAccountConfigured: boolean;
+    vapidConfigured: boolean;
+    fxApiConfigured: boolean;
+  };
 }
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -61,6 +72,10 @@ export default function SettingsPage() {
   const [fxInput, setFxInput] = useState('');
   const [syncIntervalInput, setSyncIntervalInput] = useState('');
   const [geminiFiltersInput, setGeminiFiltersInput] = useState('');
+  const [openaiOrgIdInput, setOpenaiOrgIdInput] = useState('');
+  const [gcpProjectIdInput, setGcpProjectIdInput] = useState('');
+  const [gcpDatasetInput, setGcpDatasetInput] = useState('');
+  const [gcpTableInput, setGcpTableInput] = useState('');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -85,6 +100,10 @@ export default function SettingsPage() {
         setSyncIntervalInput(String(data.syncIntervalMinutes));
         setGeminiFiltersInput(data.geminiServiceFilters);
         setManualMemo(data.claudeCodeManualMemo);
+        setOpenaiOrgIdInput(data.openaiOrganizationId);
+        setGcpProjectIdInput(data.gcpBillingProjectId);
+        setGcpDatasetInput(data.gcpBillingDataset);
+        setGcpTableInput(data.gcpBillingTable);
       });
   }, [router]);
 
@@ -171,6 +190,19 @@ export default function SettingsPage() {
 
       {saveMessage && <p className="text-sm text-gray-600 dark:text-gray-300">{saveMessage}</p>}
 
+      <Section title="接続状況 (APIキー)">
+        <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+          APIキー・秘密鍵そのものはセキュリティ上の理由でこの画面から入力できません。未設定のものは
+          プロジェクトの <code className="rounded bg-gray-100 px-1 dark:bg-neutral-800">.env.local</code>{' '}
+          に追加してサーバーを再起動してください (手順は各 docs/SETUP_*.md を参照)。
+        </p>
+        <SecretRow label="OpenAI Admin APIキー" configured={settings.secrets.openaiAdminKeyConfigured} envVar="OPENAI_ADMIN_API_KEY" />
+        <SecretRow label="Anthropic Admin APIキー" configured={settings.secrets.anthropicAdminKeyConfigured} envVar="ANTHROPIC_ADMIN_API_KEY" />
+        <SecretRow label="Google サービスアカウントJSON" configured={settings.secrets.googleServiceAccountConfigured} envVar="GOOGLE_SERVICE_ACCOUNT_JSON" />
+        <SecretRow label="Web Push (VAPID)" configured={settings.secrets.vapidConfigured} envVar="NEXT_PUBLIC_VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY" />
+        <SecretRow label="為替レート自動取得API" configured={settings.secrets.fxApiConfigured} envVar="FX_API_URL (任意)" />
+      </Section>
+
       <Section title="月額上限・為替">
         <Field label="月額上限 (円)">
           <input
@@ -221,7 +253,54 @@ export default function SettingsPage() {
         ))}
       </Section>
 
-      <Section title="Geminiサービスフィルター">
+      <Section title="OpenAI組織設定 (任意)">
+        <Field label="Organization ID">
+          <input
+            type="text"
+            value={openaiOrgIdInput}
+            onChange={(e) => setOpenaiOrgIdInput(e.target.value)}
+            onBlur={() => saveSettings({ openaiOrganizationId: openaiOrgIdInput })}
+            className={inputClass}
+            placeholder="org-..."
+          />
+        </Field>
+      </Section>
+
+      <Section title="Gemini / Google Cloud Billing 接続先">
+        <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
+          これらはIDやデータセット名で秘密情報ではないため、ここから設定できます。
+          サービスアカウントJSON自体は上の「接続状況」の通り.env.local限定です。
+        </p>
+        <Field label="GCPプロジェクトID">
+          <input
+            type="text"
+            value={gcpProjectIdInput}
+            onChange={(e) => setGcpProjectIdInput(e.target.value)}
+            onBlur={() => saveSettings({ gcpBillingProjectId: gcpProjectIdInput })}
+            className={inputClass}
+            placeholder="my-gcp-project"
+          />
+        </Field>
+        <Field label="BigQueryデータセット名">
+          <input
+            type="text"
+            value={gcpDatasetInput}
+            onChange={(e) => setGcpDatasetInput(e.target.value)}
+            onBlur={() => saveSettings({ gcpBillingDataset: gcpDatasetInput })}
+            className={inputClass}
+            placeholder="billing_export"
+          />
+        </Field>
+        <Field label="BigQueryテーブル名">
+          <input
+            type="text"
+            value={gcpTableInput}
+            onChange={(e) => setGcpTableInput(e.target.value)}
+            onBlur={() => saveSettings({ gcpBillingTable: gcpTableInput })}
+            className={inputClass}
+            placeholder="gcp_billing_export_v1_XXXXXX"
+          />
+        </Field>
         <Field label="対象サービス/SKU名 (カンマ区切り)">
           <input
             type="text"
@@ -330,6 +409,26 @@ export default function SettingsPage() {
 
 const inputClass =
   'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800';
+
+function SecretRow({ label, configured, envVar }: { label: string; configured: boolean; envVar: string }) {
+  return (
+    <div className="flex items-center justify-between py-1.5 text-sm">
+      <div>
+        <p>{label}</p>
+        <p className="text-xs text-gray-400">{envVar}</p>
+      </div>
+      <span
+        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+          configured
+            ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+            : 'bg-gray-100 text-gray-500 dark:bg-neutral-800 dark:text-gray-400'
+        }`}
+      >
+        {configured ? '設定済み' : '未設定'}
+      </span>
+    </div>
+  );
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (

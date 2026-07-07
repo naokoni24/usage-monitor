@@ -43,14 +43,24 @@ async function parseServiceFilters(): Promise<string[]> {
     .filter(Boolean);
 }
 
-function getBigQueryClient(): BigQuery {
+// Non-secret identifiers: settings-UI override wins, falling back to env.
+async function getBillingIdentifiers(): Promise<{ projectId: string | null; dataset: string | null; table: string | null }> {
+  const [projectIdOverride, datasetOverride, tableOverride] = await Promise.all([
+    getAppSetting(APP_SETTING_KEYS.gcpBillingProjectId),
+    getAppSetting(APP_SETTING_KEYS.gcpBillingDataset),
+    getAppSetting(APP_SETTING_KEYS.gcpBillingTable),
+  ]);
+  return {
+    projectId: projectIdOverride ?? process.env.GCP_BILLING_PROJECT_ID ?? null,
+    dataset: datasetOverride ?? process.env.GCP_BILLING_DATASET ?? null,
+    table: tableOverride ?? process.env.GCP_BILLING_TABLE ?? null,
+  };
+}
+
+function getBigQueryClient(projectId: string): BigQuery {
   const credsJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!credsJson) {
     throw new GeminiBillingError('GOOGLE_SERVICE_ACCOUNT_JSON is not set', 'not_configured');
-  }
-  const projectId = process.env.GCP_BILLING_PROJECT_ID;
-  if (!projectId) {
-    throw new GeminiBillingError('GCP_BILLING_PROJECT_ID is not set', 'not_configured');
   }
   let credentials: Record<string, unknown>;
   try {
@@ -78,12 +88,11 @@ export async function fetchGeminiUsage(now: Date = new Date()): Promise<CostProv
     return generateMockCostData('gemini', await getMockScenario(), budget, Number(fx?.rate ?? 150), now);
   }
 
-  const dataset = process.env.GCP_BILLING_DATASET;
-  const table = process.env.GCP_BILLING_TABLE;
-  if (!dataset || !table) {
+  const { projectId, dataset, table } = await getBillingIdentifiers();
+  if (!projectId || !dataset || !table) {
     return {
       ok: false,
-      errorMessage: 'GCP_BILLING_DATASET / GCP_BILLING_TABLE is not set',
+      errorMessage: 'GCPプロジェクトID・データセット・テーブル名が未設定です(設定画面から入力してください)',
       status: 'not_configured',
     };
   }
@@ -92,14 +101,13 @@ export async function fetchGeminiUsage(now: Date = new Date()): Promise<CostProv
   if (filters.length === 0) {
     return {
       ok: false,
-      errorMessage: 'GCP_GEMINI_SERVICE_FILTERSが未設定です(対象サービス/SKUを指定してください)',
+      errorMessage: 'Geminiサービスフィルターが未設定です(対象サービス/SKUを設定画面から指定してください)',
       status: 'not_configured',
     };
   }
 
   try {
-    const bigquery = getBigQueryClient();
-    const projectId = process.env.GCP_BILLING_PROJECT_ID;
+    const bigquery = getBigQueryClient(projectId);
 
     const filterConditions = filters.map((_, i) => `(service.description LIKE @f${i} OR sku.description LIKE @f${i})`);
     const params: Record<string, string> = {

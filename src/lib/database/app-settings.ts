@@ -9,6 +9,11 @@ export const APP_SETTING_KEYS = {
   mockScenario: 'mockScenario',
   claudeCodeManualMemo: 'claudeCodeManualMemo',
   notificationRepeatAfterDrop: 'notificationRepeatAfterDrop',
+  // Non-secret identifiers only (never API keys/credentials) - safe to edit from the settings UI.
+  openaiOrganizationId: 'openaiOrganizationId',
+  gcpBillingProjectId: 'gcpBillingProjectId',
+  gcpBillingDataset: 'gcpBillingDataset',
+  gcpBillingTable: 'gcpBillingTable',
 } as const;
 
 export async function getAppSetting(key: string): Promise<string | null> {

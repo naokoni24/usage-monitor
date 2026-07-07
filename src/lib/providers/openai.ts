@@ -3,6 +3,7 @@ import Decimal from 'decimal.js';
 import { formatTokyoDate, tokyoMonthStart, tokyoTomorrowStart } from '@/lib/date/tokyo';
 import { isMockMode, getMockScenario } from '@/lib/mock/scenario';
 import { generateMockCostData } from '@/lib/mock/cost-providers';
+import { getAppSetting, APP_SETTING_KEYS } from '@/lib/database/app-settings';
 import type { CostProviderOutcome, NormalizedDailyUsage } from './types';
 
 /**
@@ -60,8 +61,9 @@ async function openAiGet<T>(path: string, params: Record<string, string>): Promi
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
 
   const headers: Record<string, string> = { Authorization: `Bearer ${apiKey}` };
-  if (process.env.OPENAI_ORGANIZATION_ID) {
-    headers['OpenAI-Organization'] = process.env.OPENAI_ORGANIZATION_ID;
+  const organizationId = (await getAppSetting(APP_SETTING_KEYS.openaiOrganizationId)) ?? process.env.OPENAI_ORGANIZATION_ID;
+  if (organizationId) {
+    headers['OpenAI-Organization'] = organizationId;
   }
 
   const res = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
