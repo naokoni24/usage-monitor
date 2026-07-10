@@ -62,7 +62,7 @@ async function anthropicGet<T>(path: string, params: Record<string, string>): Pr
 
   const res = await fetch(url, {
     headers: { 'x-api-key': apiKey, 'anthropic-version': ANTHROPIC_VERSION },
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(30_000),
   });
   if (res.status === 401 || res.status === 403) {
     throw new AnthropicApiError(

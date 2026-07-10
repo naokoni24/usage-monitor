@@ -96,3 +96,24 @@ export async function resolveCurrentFxRate(): Promise<ResolvedFxRate | null> {
 export function convertUsdToJpy(usdAmount: string, rate: string): string {
   return new Decimal(usdAmount).mul(new Decimal(rate)).toDecimalPlaces(2).toString();
 }
+
+/**
+ * Converts a provider-reported amount to JPY, respecting its source currency.
+ * Google Cloud Billing reports costs in the billing account's own currency
+ * (JPY for Japanese accounts), so those amounts must NOT go through the
+ * USD/JPY rate again. Returns the JPY amount and the fx rate actually applied.
+ */
+export function convertToJpy(
+  amount: string,
+  currency: string,
+  usdJpyRate: string | null,
+): { costJpy: string; appliedRate: string } {
+  if (currency.toUpperCase() === 'JPY') {
+    return { costJpy: new Decimal(amount).toDecimalPlaces(2).toString(), appliedRate: '1' };
+  }
+  if (!usdJpyRate) {
+    return { costJpy: '0', appliedRate: '0' };
+  }
+  // USD and any other currency fall back to the USD/JPY rate (best effort for a personal tool).
+  return { costJpy: convertUsdToJpy(amount, usdJpyRate), appliedRate: usdJpyRate };
+}

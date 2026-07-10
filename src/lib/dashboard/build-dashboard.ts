@@ -223,8 +223,8 @@ export async function buildDashboard(now: Date = new Date()): Promise<DashboardR
       source: fx?.source ?? null,
       fetchedAt: fx?.fetchedAt ? fx.fetchedAt.toISOString() : null,
     },
-    providers: providerCards,
-    subscriptionLimits: limitCards,
+    providers: providerCards.filter((c) => c.enabled),
+    subscriptionLimits: limitCards.filter((c) => c.enabled),
     notifications: {
       webPushEnabled: webPushConfigured && subscriptions.length > 0,
       subscriptionCount: subscriptions.length,

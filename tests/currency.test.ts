@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { convertUsdToJpy, resolveCurrentFxRate, recordApiRate, saveManualFxRate } from '@/lib/currency/resolve';
+import {
+  convertUsdToJpy,
+  convertToJpy,
+  resolveCurrentFxRate,
+  recordApiRate,
+  saveManualFxRate,
+} from '@/lib/currency/resolve';
 import { db } from '@/lib/database/client';
 import { fxRates } from '@/lib/database/schema';
 
@@ -7,6 +13,21 @@ describe('convertUsdToJpy', () => {
   it('multiplies USD by the rate and rounds to 2 decimal places', () => {
     expect(convertUsdToJpy('10', '150')).toBe('1500');
     expect(convertUsdToJpy('1.2345', '150.5')).toBe('185.79');
+  });
+});
+
+describe('convertToJpy (currency-aware)', () => {
+  it('converts USD amounts through the USD/JPY rate', () => {
+    expect(convertToJpy('10', 'USD', '150')).toEqual({ costJpy: '1500', appliedRate: '150' });
+  });
+
+  it('passes JPY amounts through untouched (Google Billing reports in the account currency)', () => {
+    expect(convertToJpy('30.9', 'JPY', '162')).toEqual({ costJpy: '30.9', appliedRate: '1' });
+    expect(convertToJpy('27.494560', 'jpy', '162').costJpy).toBe('27.49');
+  });
+
+  it('returns 0 when no rate is available for a non-JPY currency', () => {
+    expect(convertToJpy('10', 'USD', null)).toEqual({ costJpy: '0', appliedRate: '0' });
   });
 });
 

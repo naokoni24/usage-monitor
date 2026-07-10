@@ -11,7 +11,7 @@ import { fetchAnthropicUsage } from '@/lib/providers/anthropic';
 import { fetchGeminiUsage } from '@/lib/providers/gemini';
 import { fetchCodexLimits } from '@/lib/codex/sync';
 import { fetchClaudeCodeLimits } from '@/lib/claude-code/sync';
-import { syncFxRateIfDue, resolveCurrentFxRate, convertUsdToJpy } from '@/lib/currency/resolve';
+import { syncFxRateIfDue, resolveCurrentFxRate, convertToJpy } from '@/lib/currency/resolve';
 import { syncMockFxRate } from '@/lib/mock/fx';
 import { isMockMode, getMockScenario } from '@/lib/mock/scenario';
 import { evaluateAndSendNotifications } from '@/lib/notifications/evaluate';
@@ -106,7 +106,7 @@ async function persistResult(
     const fx = await resolveCurrentFxRate();
     let updated = 0;
     for (const day of result.days) {
-      const costJpy = fx ? convertUsdToJpy(day.costOriginal, fx.rate) : '0';
+      const { costJpy, appliedRate } = convertToJpy(day.costOriginal, day.currencyOriginal, fx?.rate ?? null);
       await db
         .insert(usageDaily)
         .values({
@@ -116,7 +116,7 @@ async function persistResult(
           costOriginal: day.costOriginal,
           currencyOriginal: day.currencyOriginal,
           costJpy,
-          fxRate: fx?.rate ?? '0',
+          fxRate: appliedRate,
           inputTokens: day.inputTokens,
           outputTokens: day.outputTokens,
           cachedInputTokens: day.cachedInputTokens,
@@ -135,7 +135,7 @@ async function persistResult(
             costOriginal: day.costOriginal,
             currencyOriginal: day.currencyOriginal,
             costJpy,
-            fxRate: fx?.rate ?? '0',
+            fxRate: appliedRate,
             inputTokens: day.inputTokens,
             outputTokens: day.outputTokens,
             cachedInputTokens: day.cachedInputTokens,

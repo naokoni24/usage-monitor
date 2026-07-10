@@ -66,7 +66,8 @@ async function openAiGet<T>(path: string, params: Record<string, string>): Promi
     headers['OpenAI-Organization'] = organizationId;
   }
 
-  const res = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
+  // The Costs endpoint routinely takes ~10s to respond; 15s left no headroom.
+  const res = await fetch(url, { headers, signal: AbortSignal.timeout(30_000) });
   if (res.status === 401 || res.status === 403) {
     throw new OpenAiApiError(
       `OpenAI API returned ${res.status}: Admin API keyでない、または権限不足の可能性があります`,

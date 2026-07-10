@@ -118,6 +118,12 @@ export async function fetchGeminiUsage(now: Date = new Date()): Promise<CostProv
       params[`f${i}`] = `%${f}%`;
     });
 
+    // Rows sharing a usage window but carrying different export_times are
+    // late-arriving additional line items, not corrections - the export is
+    // append-only and Google's own reference queries compute cost as a plain
+    // SUM. The `cost` column is denominated in the billing account's own
+    // currency (e.g. JPY), surfaced via the `currency` column.
+    // https://cloud.google.com/billing/docs/how-to/export-data-bigquery-tables/standard-usage
     const query = `
       SELECT
         FORMAT_DATE('%Y-%m-%d', DATE(usage_start_time, 'Asia/Tokyo')) AS usage_date,
