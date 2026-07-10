@@ -1,6 +1,6 @@
 import type { ProviderUsageCard } from '@/types/dashboard';
 import { StatusBadge } from '@/components/status-badge';
-import { formatJpy, formatRelativeHours, formatDateTime } from '@/lib/format';
+import { formatJpy, formatProviderCostUsd, formatRelativeHours, formatDateTime, formatShortDate } from '@/lib/format';
 
 const PROVIDER_LABEL: Record<ProviderUsageCard['provider'], string> = {
   openai: 'OpenAI',
@@ -8,21 +8,40 @@ const PROVIDER_LABEL: Record<ProviderUsageCard['provider'], string> = {
   gemini: 'Gemini',
 };
 
-export function ProviderCard({ card }: { card: ProviderUsageCard }) {
+const PROVIDER_COST_DETAILS_URL: Record<ProviderUsageCard['provider'], string> = {
+  openai: 'https://platform.openai.com/usage',
+  anthropic: 'https://platform.claude.com/cost',
+  gemini: 'https://aistudio.google.com/spend?project=gen-lang-client-0399990183',
+};
+
+export function ProviderCard({ card, usdJpyRate }: { card: ProviderUsageCard; usdJpyRate: string | null }) {
   return (
     <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5 dark:bg-neutral-900 dark:ring-white/10">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="font-semibold">{PROVIDER_LABEL[card.provider]}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold">{PROVIDER_LABEL[card.provider]}</h3>
+          <a
+            href={PROVIDER_COST_DETAILS_URL[card.provider]}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+          >
+            料金詳細 ↗
+          </a>
+        </div>
         <StatusBadge status={card.enabled ? card.status : 'disabled'} />
       </div>
 
+      <p className="mb-1 text-xs font-medium text-gray-400">API利用料</p>
       <div className="mb-3 grid grid-cols-2 gap-3">
         <div>
-          <p className="text-xs text-gray-500 dark:text-gray-400">今日</p>
-          <p className="text-lg font-bold">{formatJpy(card.todayCostJpy)}</p>
-          {card.todayCostOriginal && (
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            直近{card.latestDayDate ? ` (${formatShortDate(card.latestDayDate)})` : ''}
+          </p>
+          <p className="text-lg font-bold">{formatJpy(card.latestDayCostJpy)}</p>
+          {card.latestDayCostOriginal && (
             <p className="text-xs text-gray-400">
-              {card.currencyOriginal} {card.todayCostOriginal}
+              {formatProviderCostUsd(card.latestDayCostOriginal, card.currencyOriginal, usdJpyRate)}
             </p>
           )}
         </div>
@@ -31,11 +50,23 @@ export function ProviderCard({ card }: { card: ProviderUsageCard }) {
           <p className="text-lg font-bold">{formatJpy(card.monthCostJpy)}</p>
           {card.monthCostOriginal && (
             <p className="text-xs text-gray-400">
-              {card.currencyOriginal} {card.monthCostOriginal}
+              {formatProviderCostUsd(card.monthCostOriginal, card.currencyOriginal, usdJpyRate)}
             </p>
           )}
         </div>
       </div>
+
+      {card.monthlySubscriptionJpy !== null && (
+        <div className="mb-3 rounded-lg bg-gray-50 p-2 dark:bg-neutral-800">
+          <p className="mb-0.5 text-xs font-medium text-gray-400">月額サブスクリプション(固定・手動入力)</p>
+          <div className="flex items-baseline justify-between">
+            <span className="text-sm font-semibold">{formatJpy(card.monthlySubscriptionJpy)}</span>
+            {card.monthlySubscriptionCurrency === 'USD' && card.monthlySubscriptionOriginal && (
+              <span className="text-xs text-gray-400">${card.monthlySubscriptionOriginal}</span>
+            )}
+          </div>
+        </div>
+      )}
 
       <dl className="grid grid-cols-3 gap-2 text-xs text-gray-500 dark:text-gray-400">
         <div>

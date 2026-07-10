@@ -20,8 +20,25 @@ function yenFormat(n: number): string {
   return `${Math.round(n).toLocaleString('ja-JP')}円`;
 }
 
-function buildTriggers(dashboard: DashboardResponse, warnings: string[]): Trigger[] {
+async function buildTriggers(dashboard: DashboardResponse, warnings: string[], now: Date): Promise<Trigger[]> {
   const triggers: Trigger[] = [];
+  const todayOfMonth = now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo', day: 'numeric' });
+
+  const renewalChecks: Array<[string, string, string]> = [
+    ['subscription_renewal_openai', APP_SETTING_KEYS.openaiSubscriptionRenewalDay, 'ChatGPT Plus/Pro'],
+    ['subscription_renewal_anthropic', APP_SETTING_KEYS.anthropicSubscriptionRenewalDay, 'Claude Pro/Max'],
+  ];
+  for (const [ruleType, settingKey, label] of renewalChecks) {
+    const renewalDay = await getAppSetting(settingKey);
+    if (renewalDay && renewalDay === todayOfMonth) {
+      triggers.push({
+        ruleType,
+        provider: 'all',
+        currentValue: 100,
+        message: `${label}の更新日です。料金が変わっていないか確認し、設定画面の月額サブスクリプション料金を最新の値に更新してください。`,
+      });
+    }
+  }
 
   triggers.push({
     ruleType: 'budget',
@@ -69,7 +86,7 @@ function buildTriggers(dashboard: DashboardResponse, warnings: string[]): Trigge
 
 export async function evaluateAndSendNotifications(now: Date = new Date()): Promise<void> {
   const dashboard = await buildDashboard(now);
-  const triggers = buildTriggers(dashboard, dashboard.warnings);
+  const triggers = await buildTriggers(dashboard, dashboard.warnings, now);
   const yearMonth = tokyoYearMonth(now);
   const repeatAfterDrop = (await getAppSetting(APP_SETTING_KEYS.notificationRepeatAfterDrop)) === 'true';
 

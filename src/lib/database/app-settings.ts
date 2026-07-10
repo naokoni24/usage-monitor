@@ -14,6 +14,17 @@ export const APP_SETTING_KEYS = {
   gcpBillingProjectId: 'gcpBillingProjectId',
   gcpBillingDataset: 'gcpBillingDataset',
   gcpBillingTable: 'gcpBillingTable',
+  // Flat monthly subscription fees (ChatGPT Plus/Pro, Claude Pro/Max, etc.) - these are
+  // billed outside the Admin API entirely, so there is nothing to fetch automatically.
+  // ChatGPT Plus/Pro is billed in JPY for JP accounts; Claude Pro/Max bills in
+  // USD regardless of region, so it's stored in USD and converted to JPY at
+  // display time using the same FX rate as the API costs.
+  openaiMonthlySubscriptionJpy: 'openaiMonthlySubscriptionJpy',
+  anthropicMonthlySubscriptionUsd: 'anthropicMonthlySubscriptionUsd',
+  // Day of month (1-28) the subscription renews - used to send a reminder push
+  // asking the user to re-check/re-enter the fee, since it cannot be fetched.
+  openaiSubscriptionRenewalDay: 'openaiSubscriptionRenewalDay',
+  anthropicSubscriptionRenewalDay: 'anthropicSubscriptionRenewalDay',
 } as const;
 
 export async function getAppSetting(key: string): Promise<string | null> {

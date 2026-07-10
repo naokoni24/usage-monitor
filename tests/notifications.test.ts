@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/database/client';
-import { usageDaily, notificationRules, notificationEvents, monthlyBudgets } from '@/lib/database/schema';
+import { usageDaily, notificationRules, notificationEvents, monthlyBudgets, appSettings } from '@/lib/database/schema';
 import { evaluateAndSendNotifications } from '@/lib/notifications/evaluate';
+import { setAppSetting, APP_SETTING_KEYS } from '@/lib/database/app-settings';
 import { formatTokyoDate, tokyoYearMonth } from '@/lib/date/tokyo';
 
 const now = new Date();
@@ -85,5 +86,53 @@ describe('monthly budget notification thresholds', () => {
 
     const rows = await db.select().from(notificationEvents).where(eq(notificationEvents.ruleType, 'budget'));
     expect(rows).toHaveLength(3); // still just one row per threshold, not six
+  });
+});
+
+describe('subscription renewal reminders', () => {
+  const renewalDay = new Date('2026-03-05T03:00:00Z'); // 2026-03-05 12:00 JST -> day "5"
+  const otherDay = new Date('2026-03-10T03:00:00Z'); // day "10"
+
+  beforeEach(async () => {
+    await db.delete(notificationRules);
+    await db.delete(notificationEvents);
+    await db.delete(appSettings);
+    await db.insert(notificationRules).values([
+      { ruleType: 'subscription_renewal_openai', threshold: 0, enabled: true },
+      { ruleType: 'subscription_renewal_anthropic', threshold: 0, enabled: true },
+    ]);
+  });
+
+  it('sends a reminder only on the configured renewal day', async () => {
+    await setAppSetting(APP_SETTING_KEYS.openaiSubscriptionRenewalDay, '5');
+
+    await evaluateAndSendNotifications(otherDay);
+    expect(
+      await db.select().from(notificationEvents).where(eq(notificationEvents.ruleType, 'subscription_renewal_openai')),
+    ).toHaveLength(0);
+
+    await evaluateAndSendNotifications(renewalDay);
+    expect(
+      await db.select().from(notificationEvents).where(eq(notificationEvents.ruleType, 'subscription_renewal_openai')),
+    ).toHaveLength(1);
+  });
+
+  it('does not resend the same renewal reminder twice in the same month', async () => {
+    await setAppSetting(APP_SETTING_KEYS.anthropicSubscriptionRenewalDay, '5');
+
+    await evaluateAndSendNotifications(renewalDay);
+    await evaluateAndSendNotifications(renewalDay);
+
+    const rows = await db
+      .select()
+      .from(notificationEvents)
+      .where(eq(notificationEvents.ruleType, 'subscription_renewal_anthropic'));
+    expect(rows).toHaveLength(1);
+  });
+
+  it('does nothing when no renewal day is configured', async () => {
+    await evaluateAndSendNotifications(renewalDay);
+    const rows = await db.select().from(notificationEvents);
+    expect(rows.filter((r) => r.ruleType.startsWith('subscription_renewal_'))).toHaveLength(0);
   });
 });

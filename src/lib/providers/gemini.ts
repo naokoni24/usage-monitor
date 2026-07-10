@@ -1,6 +1,7 @@
 import 'server-only';
 import Decimal from 'decimal.js';
 import { BigQuery } from '@google-cloud/bigquery';
+import { MetricServiceClient } from '@google-cloud/monitoring';
 import { tokyoMonthStart, tokyoTomorrowStart } from '@/lib/date/tokyo';
 import { isMockMode, getMockScenario } from '@/lib/mock/scenario';
 import { generateMockCostData } from '@/lib/mock/cost-providers';
@@ -58,17 +59,19 @@ async function getBillingIdentifiers(): Promise<{ projectId: string | null; data
 }
 
 function getBigQueryClient(projectId: string): BigQuery {
+  return new BigQuery({ projectId, credentials: getGoogleCredentials() });
+}
+
+function getGoogleCredentials(): Record<string, unknown> {
   const credsJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!credsJson) {
     throw new GeminiBillingError('GOOGLE_SERVICE_ACCOUNT_JSON is not set', 'not_configured');
   }
-  let credentials: Record<string, unknown>;
   try {
-    credentials = JSON.parse(credsJson);
+    return JSON.parse(credsJson) as Record<string, unknown>;
   } catch {
     throw new GeminiBillingError('GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON', 'not_configured');
   }
-  return new BigQuery({ projectId, credentials });
 }
 
 interface BillingRow {
@@ -77,6 +80,81 @@ interface BillingRow {
   credits_amount: number;
   currency: string;
   latest_usage_end: { value: string } | null; // raw TIMESTAMP column - client wraps it in { value }
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cached_input_tokens: number | null;
+}
+
+interface MonitoringPoint {
+  interval?: { startTime?: { seconds?: number | string | { toString(): string } } };
+  value?: { int64Value?: number | string | { toString(): string }; doubleValue?: number };
+}
+
+const REQUEST_COUNT_METRIC = 'serviceruntime.googleapis.com/api/request_count';
+const GEMINI_API_SERVICES = ['generativelanguage.googleapis.com', 'aiplatform.googleapis.com'] as const;
+
+function numberValue(value: number | string | { toString(): string } | undefined): number {
+  if (value === undefined) return 0;
+  const parsed = Number(typeof value === 'object' ? value.toString() : value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/** Billing exports contain no request-count line item, so read that separately from Cloud Monitoring. */
+async function fetchGeminiRequestCounts(projectId: string, now: Date): Promise<Map<string, number> | null> {
+  try {
+    const monitoring = new MetricServiceClient({ projectId, credentials: getGoogleCredentials() });
+    const start = tokyoMonthStart(now);
+    const end = tokyoTomorrowStart(now);
+    const counts = new Map<string, number>();
+
+    for (const service of GEMINI_API_SERVICES) {
+      const filter = [
+        `metric.type = "${REQUEST_COUNT_METRIC}"`,
+        'resource.type = "consumed_api"',
+        `resource.labels.service = "${service}"`,
+      ].join(' AND ');
+      const [series] = await monitoring.listTimeSeries({
+        name: `projects/${projectId}`,
+        filter,
+        interval: {
+          startTime: { seconds: Math.floor(start.getTime() / 1000) },
+          endTime: { seconds: Math.floor(end.getTime() / 1000) },
+        },
+        aggregation: {
+          alignmentPeriod: { seconds: 24 * 60 * 60 },
+          perSeriesAligner: 'ALIGN_SUM',
+          crossSeriesReducer: 'REDUCE_SUM',
+        },
+        view: 'FULL',
+      });
+
+      for (const timeSeries of series) {
+        for (const point of timeSeries.points ?? []) {
+          const typedPoint = point as MonitoringPoint;
+          const startSeconds = numberValue(typedPoint.interval?.startTime?.seconds);
+          if (!startSeconds) continue;
+          const usageDate = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Tokyo',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+          }).format(new Date(startSeconds * 1000));
+          const count = numberValue(typedPoint.value?.int64Value) || numberValue(typedPoint.value?.doubleValue);
+          counts.set(usageDate, (counts.get(usageDate) ?? 0) + count);
+        }
+      }
+    }
+    return counts;
+  } catch {
+    // Monitoring Viewer is optional; a missing role/API must not block billing sync.
+    return null;
+  }
+}
+
+// Billing rows only carry token counts for token-count SKUs; a 0 here means
+// "no matching SKU seen", which must surface as unknown (取得不可), not as 0.
+function tokenCountOrNull(value: number | null | undefined): number | null {
+  return value ? Math.round(value) : null;
 }
 
 export async function fetchGeminiUsage(now: Date = new Date()): Promise<CostProviderOutcome> {
@@ -108,6 +186,7 @@ export async function fetchGeminiUsage(now: Date = new Date()): Promise<CostProv
 
   try {
     const bigquery = getBigQueryClient(projectId);
+    const requestCounts = await fetchGeminiRequestCounts(projectId, now);
 
     const filterConditions = filters.map((_, i) => `(service.description LIKE @f${i} OR sku.description LIKE @f${i})`);
     const params: Record<string, string> = {
@@ -123,6 +202,10 @@ export async function fetchGeminiUsage(now: Date = new Date()): Promise<CostProv
     // append-only and Google's own reference queries compute cost as a plain
     // SUM. The `cost` column is denominated in the billing account's own
     // currency (e.g. JPY), surfaced via the `currency` column.
+    // Token counts ride along as usage.amount on SKUs named
+    // "... input token count ..." / "... output token count ..."
+    // (the output SKU also ends in "short input text", so the input match
+    // must exclude anything that matched output first).
     // https://cloud.google.com/billing/docs/how-to/export-data-bigquery-tables/standard-usage
     const query = `
       SELECT
@@ -130,7 +213,19 @@ export async function fetchGeminiUsage(now: Date = new Date()): Promise<CostProv
         SUM(cost) AS cost_before_credits,
         SUM((SELECT IFNULL(SUM(c.amount), 0) FROM UNNEST(credits) c)) AS credits_amount,
         ANY_VALUE(currency) AS currency,
-        MAX(usage_end_time) AS latest_usage_end
+        MAX(usage_end_time) AS latest_usage_end,
+        SUM(CASE
+          WHEN LOWER(sku.description) LIKE '%input token count%'
+            AND LOWER(sku.description) NOT LIKE '%output token count%'
+            AND LOWER(sku.description) NOT LIKE '%cache%'
+          THEN usage.amount ELSE 0 END) AS input_tokens,
+        SUM(CASE
+          WHEN LOWER(sku.description) LIKE '%output token count%'
+          THEN usage.amount ELSE 0 END) AS output_tokens,
+        SUM(CASE
+          WHEN LOWER(sku.description) LIKE '%cache%'
+            AND LOWER(sku.description) LIKE '%token%'
+          THEN usage.amount ELSE 0 END) AS cached_input_tokens
       FROM \`${projectId}.${dataset}.${table}\`
       WHERE usage_start_time >= TIMESTAMP(@start)
         AND usage_start_time < TIMESTAMP(@end)
@@ -152,11 +247,11 @@ export async function fetchGeminiUsage(now: Date = new Date()): Promise<CostProv
         usageDate: row.usage_date,
         costOriginal: costAfterCredits.toString(),
         currencyOriginal: (row.currency ?? 'USD').toUpperCase(),
-        inputTokens: null,
-        outputTokens: null,
-        cachedInputTokens: null,
+        inputTokens: tokenCountOrNull(row.input_tokens),
+        outputTokens: tokenCountOrNull(row.output_tokens),
+        cachedInputTokens: tokenCountOrNull(row.cached_input_tokens),
         cachedOutputTokens: null,
-        requestCount: null,
+        requestCount: requestCounts?.get(row.usage_date) ?? null,
         dataPeriodStart: null,
         dataPeriodEnd: latestUsageEnd,
       };

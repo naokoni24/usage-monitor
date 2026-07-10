@@ -37,6 +37,10 @@ export async function GET() {
     gcpBillingProjectId: appSettings[APP_SETTING_KEYS.gcpBillingProjectId] ?? process.env.GCP_BILLING_PROJECT_ID ?? '',
     gcpBillingDataset: appSettings[APP_SETTING_KEYS.gcpBillingDataset] ?? process.env.GCP_BILLING_DATASET ?? '',
     gcpBillingTable: appSettings[APP_SETTING_KEYS.gcpBillingTable] ?? process.env.GCP_BILLING_TABLE ?? '',
+    openaiMonthlySubscriptionJpy: Number(appSettings[APP_SETTING_KEYS.openaiMonthlySubscriptionJpy] ?? 0),
+    anthropicMonthlySubscriptionUsd: Number(appSettings[APP_SETTING_KEYS.anthropicMonthlySubscriptionUsd] ?? 0),
+    openaiSubscriptionRenewalDay: appSettings[APP_SETTING_KEYS.openaiSubscriptionRenewalDay] ?? '',
+    anthropicSubscriptionRenewalDay: appSettings[APP_SETTING_KEYS.anthropicSubscriptionRenewalDay] ?? '',
     // Secret/credential presence only - never the values themselves.
     secrets: {
       openaiAdminKeyConfigured: Boolean(process.env.OPENAI_ADMIN_API_KEY),
@@ -65,6 +69,10 @@ const putSchema = z.object({
   gcpBillingProjectId: z.string().optional(),
   gcpBillingDataset: z.string().optional(),
   gcpBillingTable: z.string().optional(),
+  openaiMonthlySubscriptionJpy: z.number().int().min(0).optional(),
+  anthropicMonthlySubscriptionUsd: z.number().min(0).optional(),
+  openaiSubscriptionRenewalDay: z.string().regex(/^([1-9]|1[0-9]|2[0-8])?$/).optional(),
+  anthropicSubscriptionRenewalDay: z.string().regex(/^([1-9]|1[0-9]|2[0-8])?$/).optional(),
 });
 
 export async function PUT(request: NextRequest) {
@@ -125,6 +133,18 @@ export async function PUT(request: NextRequest) {
   }
   if (data.gcpBillingTable !== undefined) {
     await setAppSetting(APP_SETTING_KEYS.gcpBillingTable, data.gcpBillingTable);
+  }
+  if (data.openaiMonthlySubscriptionJpy !== undefined) {
+    await setAppSetting(APP_SETTING_KEYS.openaiMonthlySubscriptionJpy, String(data.openaiMonthlySubscriptionJpy));
+  }
+  if (data.anthropicMonthlySubscriptionUsd !== undefined) {
+    await setAppSetting(APP_SETTING_KEYS.anthropicMonthlySubscriptionUsd, String(data.anthropicMonthlySubscriptionUsd));
+  }
+  if (data.openaiSubscriptionRenewalDay !== undefined) {
+    await setAppSetting(APP_SETTING_KEYS.openaiSubscriptionRenewalDay, data.openaiSubscriptionRenewalDay);
+  }
+  if (data.anthropicSubscriptionRenewalDay !== undefined) {
+    await setAppSetting(APP_SETTING_KEYS.anthropicSubscriptionRenewalDay, data.anthropicSubscriptionRenewalDay);
   }
 
   return NextResponse.json({ ok: true });

@@ -11,7 +11,8 @@ import {
   type Provider,
 } from '@/lib/database/schema';
 import { getMonthlyBudgetJpy } from '@/lib/budget/monthly-budget';
-import { resolveCurrentFxRate } from '@/lib/currency/resolve';
+import { resolveCurrentFxRate, convertUsdToJpy } from '@/lib/currency/resolve';
+import { getAppSetting, APP_SETTING_KEYS } from '@/lib/database/app-settings';
 import { formatTokyoDate, tokyoMonthStart, tokyoNextMonthStart, tokyoYearMonth } from '@/lib/date/tokyo';
 import type {
   DashboardResponse,
@@ -39,10 +40,41 @@ function dedupeByDate<T extends { usageDate: string; lastSyncedAt: Date }>(rows:
   return [...byDate.values()];
 }
 
+interface SubscriptionFee {
+  jpy: number | null;
+  original: string | null;
+  currency: string | null;
+}
+
+const NO_SUBSCRIPTION_FEE: SubscriptionFee = { jpy: null, original: null, currency: null };
+
+async function getMonthlySubscriptionFee(
+  provider: (typeof COST_PROVIDERS)[number],
+  usdJpyRate: string | null,
+): Promise<SubscriptionFee> {
+  if (provider === 'openai') {
+    // ChatGPT Plus/Pro billed in JPY.
+    const raw = await getAppSetting(APP_SETTING_KEYS.openaiMonthlySubscriptionJpy);
+    const value = raw ? Number(raw) : null;
+    if (!value || !Number.isFinite(value) || value <= 0) return NO_SUBSCRIPTION_FEE;
+    return { jpy: value, original: String(value), currency: 'JPY' };
+  }
+  if (provider === 'anthropic') {
+    // Claude Pro/Max billed in USD - convert using the same rate as API costs.
+    const raw = await getAppSetting(APP_SETTING_KEYS.anthropicMonthlySubscriptionUsd);
+    const value = raw ? Number(raw) : null;
+    if (!value || !Number.isFinite(value) || value <= 0) return NO_SUBSCRIPTION_FEE;
+    const jpy = usdJpyRate ? Number(convertUsdToJpy(String(value), usdJpyRate)) : null;
+    return { jpy, original: String(value), currency: 'USD' };
+  }
+  return NO_SUBSCRIPTION_FEE; // Gemini has no equivalent flat subscription fee
+}
+
 async function buildProviderCard(
   provider: (typeof COST_PROVIDERS)[number],
   now: Date,
   warnings: string[],
+  usdJpyRate: string | null,
 ): Promise<ProviderUsageCard> {
   const [connection] = await db
     .select()
@@ -50,7 +82,6 @@ async function buildProviderCard(
     .where(eq(providerConnections.provider, provider))
     .limit(1);
 
-  const today = formatTokyoDate(now);
   const monthStart = formatTokyoDate(tokyoMonthStart(now));
   const monthEnd = formatTokyoDate(tokyoNextMonthStart(now));
 
@@ -61,7 +92,13 @@ async function buildProviderCard(
       and(eq(usageDaily.provider, provider), gte(usageDaily.usageDate, monthStart), lt(usageDaily.usageDate, monthEnd)),
     );
   const monthRows = dedupeByDate(monthRowsRaw);
-  const todayRow = monthRows.find((r) => r.usageDate === today) ?? null;
+  // Provider data lags by hours to a day (and OpenAI/Anthropic bucket by UTC),
+  // so "today" is almost always empty during JST daytime - surface the most
+  // recent day that actually has data instead.
+  const latestRow = monthRows.reduce<(typeof monthRows)[number] | null>(
+    (latest, r) => (!latest || r.usageDate > latest.usageDate ? r : latest),
+    null,
+  );
 
   const hasData = monthRows.length > 0;
   const monthCostOriginal = monthRows.reduce((sum, r) => sum.plus(r.costOriginal), new Decimal(0));
@@ -84,8 +121,8 @@ async function buildProviderCard(
     warnings.push(`${provider}: 最終更新から24時間以上経過しています`);
   }
 
-  if (provider === 'gemini' && todayRow?.dataPeriodEnd) {
-    if (now.getTime() - todayRow.dataPeriodEnd.getTime() > GEMINI_BILLING_STALE_MS) {
+  if (provider === 'gemini' && latestRow?.dataPeriodEnd) {
+    if (now.getTime() - latestRow.dataPeriodEnd.getTime() > GEMINI_BILLING_STALE_MS) {
       warnings.push('Google Billingの請求データが48時間以上更新されていません(反映待ちの可能性があります)');
     }
   }
@@ -94,21 +131,27 @@ async function buildProviderCard(
     warnings.push(`${provider}: ${connection.lastErrorMessage}`);
   }
 
+  const subscriptionFee = await getMonthlySubscriptionFee(provider, usdJpyRate);
+
   return {
     provider,
     enabled,
     status,
-    todayCostOriginal: todayRow?.costOriginal ?? null,
-    todayCostJpy: todayRow?.costJpy ?? null,
+    latestDayDate: latestRow?.usageDate ?? null,
+    latestDayCostOriginal: latestRow?.costOriginal ?? null,
+    latestDayCostJpy: latestRow?.costJpy ?? null,
     monthCostOriginal: hasData ? monthCostOriginal.toString() : null,
     monthCostJpy: hasData ? monthCostJpy.toString() : null,
+    monthlySubscriptionJpy: subscriptionFee.jpy,
+    monthlySubscriptionOriginal: subscriptionFee.original,
+    monthlySubscriptionCurrency: subscriptionFee.currency,
     currencyOriginal: monthRows[0]?.currencyOriginal ?? null,
     inputTokens: sumField('inputTokens'),
     outputTokens: sumField('outputTokens'),
     requestCount: sumField('requestCount'),
     lastFetchedAt: lastFetchedAt ? lastFetchedAt.toISOString() : null,
-    confidence: (todayRow?.confidence ?? monthRows.at(-1)?.confidence ?? null) as ProviderUsageCard['confidence'],
-    isEstimated: todayRow?.isEstimated ?? monthRows.at(-1)?.isEstimated ?? false,
+    confidence: (latestRow?.confidence ?? null) as ProviderUsageCard['confidence'],
+    isEstimated: latestRow?.isEstimated ?? false,
     errorMessage: connection?.lastErrorMessage ?? null,
   };
 }
@@ -179,16 +222,22 @@ export async function buildDashboard(now: Date = new Date()): Promise<DashboardR
     warnings.push('為替レートが3日以上更新されていません');
   }
 
-  const providerCards = await Promise.all(COST_PROVIDERS.map((p) => buildProviderCard(p, now, warnings)));
+  const providerCards = await Promise.all(
+    COST_PROVIDERS.map((p) => buildProviderCard(p, now, warnings, fx?.rate ?? null)),
+  );
   const limitCards = await Promise.all(LIMIT_PROVIDERS.map((p) => buildLimitCard(p, now, warnings)));
 
-  const monthTotalJpy = providerCards.reduce(
-    (sum, c) => (c.monthCostJpy ? sum.plus(c.monthCostJpy) : sum),
+  const monthTotalJpy = providerCards.reduce((sum, c) => {
+    if (!c.enabled) return sum;
+    return sum.plus(c.monthCostJpy ?? 0).plus(c.monthlySubscriptionJpy ?? 0);
+  }, new Decimal(0));
+  const latestDayTotalJpy = providerCards.reduce(
+    (sum, c) => (c.latestDayCostJpy ? sum.plus(c.latestDayCostJpy) : sum),
     new Decimal(0),
   );
-  const todayTotalJpy = providerCards.reduce(
-    (sum, c) => (c.todayCostJpy ? sum.plus(c.todayCostJpy) : sum),
-    new Decimal(0),
+  const latestDayDate = providerCards.reduce<string | null>(
+    (latest, c) => (c.latestDayDate && (!latest || c.latestDayDate > latest) ? c.latestDayDate : latest),
+    null,
   );
   const budgetUsedPercent = budgetJpy > 0 ? monthTotalJpy.div(budgetJpy).mul(100).toDecimalPlaces(1).toNumber() : 0;
 
@@ -214,7 +263,8 @@ export async function buildDashboard(now: Date = new Date()): Promise<DashboardR
   const webPushConfigured = Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
 
   return {
-    todayTotalJpy: todayTotalJpy.toDecimalPlaces(0).toString(),
+    latestDayTotalJpy: latestDayTotalJpy.toDecimalPlaces(0).toString(),
+    latestDayDate,
     monthTotalJpy: monthTotalJpy.toDecimalPlaces(0).toString(),
     monthlyBudgetJpy: budgetJpy,
     budgetUsedPercent,

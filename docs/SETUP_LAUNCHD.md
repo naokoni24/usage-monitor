@@ -31,7 +31,7 @@ npm run service:uninstall
 
 ## ログ
 
-標準出力・標準エラーは `logs/launchd.out.log` / `logs/launchd.err.log` に出力される
+標準出力・標準エラーは `~/Library/Logs/ai-usage-monitor/launchd.out.log` / `~/Library/Logs/ai-usage-monitor/launchd.err.log` に出力される
 (APIキーやパスワードはログに出力しない設計になっている)。
 
 ## 環境変数について

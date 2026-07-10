@@ -30,16 +30,19 @@ iPhone
 ## データフロー
 
 1. `src/instrumentation.ts` の `register()` がサーバー起動時に一度だけ実行され、
-   通知ルールのデフォルトをシードし、`startPeriodicSync()` で定期同期ループを開始する。
-2. 定期同期ループ (`src/lib/scheduler/interval.ts`) は `SYNC_INTERVAL_MINUTES` (設定画面からも変更可) ごとに
-   `runFullSync()` を呼び出す。
-3. `runFullSync()` (`src/lib/scheduler/sync-engine.ts`) は以下を独立して並行実行する:
-   - 為替レートの日次同期 (`syncFxRateIfDue`)
-   - OpenAI / Anthropic / Gemini のコスト取得 → `usage_daily` へ upsert
-   - Codex / Claude Code の利用枠取得 → `subscription_limits` へ追記
-   - 各プロバイダーの成功/失敗は `provider_connections` と `sync_runs` に記録され、
-     1つのプロバイダーが失敗しても他のプロバイダーの同期は継続する (`Promise.allSettled`)。
-4. 同期後に `evaluateAndSendNotifications()` が現在のダッシュボード状態を計算し、
+   通知ルールのデフォルトをシードし、`startPeriodicSync()` で2本の定期同期ループを開始する。
+2. 同期は**更新頻度が全く違う2系統**に分けて独立したループで走る (`src/lib/scheduler/interval.ts`):
+   - **コスト系** (`syncCostProviders`): OpenAI / Anthropic / Gemini はどれも実際の反映が
+     数時間〜1日遅れるため、`SYNC_INTERVAL_MINUTES` (既定60分、設定画面からも変更可) ごとに
+     まとめて同期する。Claude Codeも(手動入力の状態を再確認するだけなので)ここに相乗り。
+     為替レートの日次同期 (`syncFxRateIfDue`) もこのタイミングで行う。
+   - **Codex** (`syncCodex`): 利用枠はリクエストのたびに変わるため、`CODEX_SYNC_INTERVAL_MINUTES`
+     (既定5分) という別間隔で単独同期する。
+3. どちらのループも `src/lib/scheduler/sync-engine.ts` の `syncOneProvider()` を経由し、
+   各プロバイダーの成功/失敗は `provider_connections` と `sync_runs` に記録される。
+   1つのプロバイダーが失敗しても他のプロバイダーの同期は継続する (`Promise.allSettled`)。
+   手動同期 (`POST /api/sync`, `npm run sync`) は両ループを1回ずつ即時実行する `runFullSync()` を使う。
+4. 各ループの同期後に `evaluateAndSendNotifications()` が現在のダッシュボード状態を計算し、
    しきい値を超えた通知ルールについて Web Push を送信する (`notification_events` で月内の重複を防止)。
 5. ダッシュボード / iPhone PWA は `GET /api/dashboard` を呼び出し、上記のテーブルから
    組み立てられたJSONを表示する。

@@ -1,5 +1,5 @@
 import 'server-only';
-import { eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/lib/database/client';
 import { providerConnections, usageDaily, subscriptionLimits, syncRuns } from '@/lib/database/schema';
 import type { Provider } from '@/lib/database/schema';
@@ -158,7 +158,31 @@ async function persistResult(
   if (result.source === 'manual') return 0;
 
   const now = new Date();
+  let updated = 0;
   for (const limit of result.limits) {
+    // After macOS wakes from sleep, Codex App Server can briefly return a
+    // stale percentage while retaining the same reset timestamp. A large drop
+    // within that same window cannot be a fresh reading, so retain the last
+    // known value until the next normal sync.
+    if (provider === 'codex') {
+      const [previous] = await db
+        .select()
+        .from(subscriptionLimits)
+        .where(and(eq(subscriptionLimits.provider, provider), eq(subscriptionLimits.limitType, limit.limitType)))
+        .orderBy(desc(subscriptionLimits.collectedAt))
+        .limit(1);
+      const sameWindow =
+        previous?.resetAt && limit.resetAt && Math.abs(previous.resetAt.getTime() - limit.resetAt.getTime()) < 60_000;
+      if (previous && sameWindow && limit.usedPercent < previous.usedPercent - 15) {
+        logger.warn('ignored stale Codex limit after wake', {
+          limitType: limit.limitType,
+          previousUsedPercent: previous.usedPercent,
+          reportedUsedPercent: limit.usedPercent,
+        });
+        continue;
+      }
+    }
+
     await db.insert(subscriptionLimits).values({
       provider,
       limitType: limit.limitType,
@@ -170,11 +194,24 @@ async function persistResult(
       collectedAt: now,
       expiresAt: null,
     });
+    updated++;
   }
-  return result.limits.length;
+  return updated;
 }
 
-export async function runFullSync(): Promise<void> {
+async function notify(): Promise<void> {
+  await evaluateAndSendNotifications().catch((err) =>
+    logger.error('notification evaluation failed', { error: err instanceof Error ? err.message : String(err) }),
+  );
+}
+
+/**
+ * Cost providers (OpenAI/Anthropic/Gemini) only publish data with an
+ * hours-to-a-day lag upstream, so this is meant to run infrequently
+ * (see SYNC_INTERVAL_MINUTES) rather than every few minutes.
+ * Claude Code rides along here too since it has no live API to poll.
+ */
+export async function syncCostProviders(): Promise<void> {
   if (isMockMode()) {
     await syncMockFxRate(await getMockScenario());
   } else {
@@ -187,13 +224,24 @@ export async function runFullSync(): Promise<void> {
     syncOneProvider('openai', fetchOpenAiUsage),
     syncOneProvider('anthropic', fetchAnthropicUsage),
     syncOneProvider('gemini', fetchGeminiUsage),
-    syncOneProvider('codex', fetchCodexLimits),
     syncOneProvider('claude-code', fetchClaudeCodeLimits),
   ]);
 
-  await evaluateAndSendNotifications().catch((err) =>
-    logger.error('notification evaluation failed', { error: err instanceof Error ? err.message : String(err) }),
-  );
+  await notify();
+}
+
+/**
+ * Codex rate limits shift with every request, so this is meant to run on a
+ * much shorter cadence (see CODEX_SYNC_INTERVAL_MINUTES) than the cost sync.
+ */
+export async function syncCodex(): Promise<void> {
+  await syncOneProvider('codex', fetchCodexLimits);
+  await notify();
+}
+
+/** Runs everything once (used by the manual "sync now" button and the CLI script). */
+export async function runFullSync(): Promise<void> {
+  await Promise.allSettled([syncCostProviders(), syncCodex()]);
 }
 
 export { COST_PROVIDERS, LIMIT_PROVIDERS };

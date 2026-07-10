@@ -6,7 +6,7 @@ import type { DashboardResponse } from '@/types/dashboard';
 import { ProviderCard } from '@/components/dashboard/provider-card';
 import { LimitCard } from '@/components/dashboard/limit-card';
 import { ProgressBar } from '@/components/progress-bar';
-import { formatJpy, formatPercent, formatRelativeHours, formatDateTime } from '@/lib/format';
+import { formatJpy, formatPercent, formatRelativeHours, formatDateTime, formatShortDate } from '@/lib/format';
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardResponse | null>(null);
@@ -69,8 +69,10 @@ export default function DashboardPage() {
       <section className="mb-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 dark:bg-neutral-900 dark:ring-white/10">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">今日</p>
-            <p className="text-3xl font-bold">{formatJpy(data.todayTotalJpy)}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              直近{data.latestDayDate ? ` (${formatShortDate(data.latestDayDate)})` : ''}
+            </p>
+            <p className="text-3xl font-bold">{formatJpy(data.latestDayTotalJpy)}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500 dark:text-gray-400">今月</p>
@@ -108,7 +110,7 @@ export default function DashboardPage() {
       <h2 className="mb-2 text-sm font-semibold text-gray-500 dark:text-gray-400">API料金</h2>
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {data.providers.map((card) => (
-          <ProviderCard key={card.provider} card={card} />
+          <ProviderCard key={card.provider} card={card} usdJpyRate={data.fxRate.rate} />
         ))}
       </div>
 

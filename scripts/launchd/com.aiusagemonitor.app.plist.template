@@ -8,10 +8,13 @@
   <key>WorkingDirectory</key>
   <string>__PROJECT_DIR__</string>
 
+  <!-- Run next via node directly (no npm wrapper): when launchd restarts the
+       service, killing an npm wrapper can leave its node child holding the
+       port, wedging every subsequent respawn with EADDRINUSE. -->
   <key>ProgramArguments</key>
   <array>
-    <string>__NPM_BIN__</string>
-    <string>run</string>
+    <string>__NODE_BIN__</string>
+    <string>__PROJECT_DIR__/node_modules/next/dist/bin/next</string>
     <string>start</string>
   </array>
 
@@ -33,10 +36,13 @@
     <true/>
   </dict>
 
+  <!-- Logs must live OUTSIDE ~/Desktop, ~/Documents, and ~/Downloads: launchd
+       cannot open stdout/stderr paths inside TCC-protected folders and the job
+       dies pre-spawn with EX_CONFIG (78) without writing anything anywhere. -->
   <key>StandardOutPath</key>
-  <string>__PROJECT_DIR__/logs/launchd.out.log</string>
+  <string>__LOG_DIR__/launchd.out.log</string>
   <key>StandardErrorPath</key>
-  <string>__PROJECT_DIR__/logs/launchd.err.log</string>
+  <string>__LOG_DIR__/launchd.err.log</string>
 
   <key>ProcessType</key>
   <string>Background</string>

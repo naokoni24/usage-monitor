@@ -10,11 +10,24 @@ export interface ProviderUsageCard {
   provider: 'openai' | 'anthropic' | 'gemini';
   enabled: boolean;
   status: ConnectionStatus;
-  todayCostOriginal: string | null;
-  todayCostJpy: string | null;
+  /** Most recent day for which this provider has data (YYYY-MM-DD), or null when none. */
+  latestDayDate: string | null;
+  latestDayCostOriginal: string | null;
+  latestDayCostJpy: string | null;
   monthCostOriginal: string | null;
   monthCostJpy: string | null;
   currencyOriginal: string | null;
+  /**
+   * Flat monthly subscription fee (ChatGPT Plus/Pro, Claude Pro/Max, etc.),
+   * manually entered in settings. This is billed outside any usage API, so it
+   * cannot be fetched automatically - null means none has been set.
+   * `monthlySubscriptionOriginal`/`monthlySubscriptionCurrency` hold the value
+   * as entered (JPY for OpenAI, USD for Anthropic); `monthlySubscriptionJpy`
+   * is always the JPY-converted amount used in totals.
+   */
+  monthlySubscriptionJpy: number | null;
+  monthlySubscriptionOriginal: string | null;
+  monthlySubscriptionCurrency: string | null;
   inputTokens: number | null;
   outputTokens: number | null;
   requestCount: number | null;
@@ -63,7 +76,10 @@ export interface NotificationsInfo {
 }
 
 export interface DashboardResponse {
-  todayTotalJpy: string;
+  /** Sum of each provider's latest available day (may span slightly different dates). */
+  latestDayTotalJpy: string;
+  /** Most recent usage date across all providers (YYYY-MM-DD), or null when no data. */
+  latestDayDate: string | null;
   monthTotalJpy: string;
   monthlyBudgetJpy: number;
   budgetUsedPercent: number;

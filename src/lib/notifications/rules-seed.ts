@@ -16,6 +16,8 @@ const DEFAULT_RULES: Array<{ ruleType: string; threshold: number }> = [
   { ruleType: 'system_stale_24h', threshold: 0 },
   { ruleType: 'system_fx_stale_3d', threshold: 0 },
   { ruleType: 'system_billing_stale_48h', threshold: 0 },
+  { ruleType: 'subscription_renewal_openai', threshold: 0 },
+  { ruleType: 'subscription_renewal_anthropic', threshold: 0 },
 ];
 
 export async function seedDefaultNotificationRules(): Promise<void> {

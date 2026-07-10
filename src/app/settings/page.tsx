@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { PushSettings } from '@/components/push-settings';
+import { formatJpy } from '@/lib/format';
 
 interface SettingsResponse {
   monthlyBudgetJpy: number;
@@ -20,6 +21,10 @@ interface SettingsResponse {
   gcpBillingProjectId: string;
   gcpBillingDataset: string;
   gcpBillingTable: string;
+  openaiMonthlySubscriptionJpy: number;
+  anthropicMonthlySubscriptionUsd: number;
+  openaiSubscriptionRenewalDay: string;
+  anthropicSubscriptionRenewalDay: string;
   secrets: {
     openaiAdminKeyConfigured: boolean;
     anthropicAdminKeyConfigured: boolean;
@@ -47,6 +52,8 @@ const RULE_LABEL: Record<string, string> = {
   system_stale_24h: '同期停滞(24時間)',
   system_fx_stale_3d: '為替レート停滞(3日)',
   system_billing_stale_48h: 'Billing停滞(48時間)',
+  subscription_renewal_openai: 'ChatGPT更新日リマインド',
+  subscription_renewal_anthropic: 'Claude更新日リマインド',
 };
 
 const MOCK_SCENARIOS = [
@@ -76,6 +83,10 @@ export default function SettingsPage() {
   const [gcpProjectIdInput, setGcpProjectIdInput] = useState('');
   const [gcpDatasetInput, setGcpDatasetInput] = useState('');
   const [gcpTableInput, setGcpTableInput] = useState('');
+  const [openaiSubInput, setOpenaiSubInput] = useState('');
+  const [anthropicSubInput, setAnthropicSubInput] = useState('');
+  const [openaiRenewalDayInput, setOpenaiRenewalDayInput] = useState('');
+  const [anthropicRenewalDayInput, setAnthropicRenewalDayInput] = useState('');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -104,6 +115,10 @@ export default function SettingsPage() {
         setGcpProjectIdInput(data.gcpBillingProjectId);
         setGcpDatasetInput(data.gcpBillingDataset);
         setGcpTableInput(data.gcpBillingTable);
+        setOpenaiSubInput(String(data.openaiMonthlySubscriptionJpy || ''));
+        setAnthropicSubInput(String(data.anthropicMonthlySubscriptionUsd || ''));
+        setOpenaiRenewalDayInput(data.openaiSubscriptionRenewalDay);
+        setAnthropicRenewalDayInput(data.anthropicSubscriptionRenewalDay);
       });
   }, [router]);
 
@@ -229,7 +244,7 @@ export default function SettingsPage() {
       </Section>
 
       <Section title="同期設定">
-        <Field label="同期間隔 (分)">
+        <Field label="コスト系(OpenAI/Anthropic/Gemini)の同期間隔 (分)">
           <input
             type="number"
             value={syncIntervalInput}
@@ -238,6 +253,10 @@ export default function SettingsPage() {
             className={inputClass}
           />
         </Field>
+        <p className="text-xs text-gray-400">
+          Codexの利用枠は別枠で頻繁に同期されます(環境変数 CODEX_SYNC_INTERVAL_MINUTES、既定5分)。
+          Claude Codeは手動入力のみのため定期同期の対象外です。
+        </p>
       </Section>
 
       <Section title="連携の有効/無効">
@@ -264,6 +283,72 @@ export default function SettingsPage() {
             placeholder="org-..."
           />
         </Field>
+      </Section>
+
+      <Section title="月額サブスクリプション料金">
+        <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
+          ChatGPT Plus/Pro・Claude Pro/Maxなどの固定月額費用。API利用料とは別課金で
+          自動取得できないため、金額が分かっている場合のみ入力してください。
+          ChatGPTは円建て、Claudeはドル建てで課金されるため、それぞれの通貨で入力すると
+          ダッシュボード側で現在の為替レートを使って円換算します。
+        </p>
+        <Field label="ChatGPT Plus/Pro 月額 (円)">
+          <input
+            type="number"
+            min={0}
+            value={openaiSubInput}
+            onChange={(e) => setOpenaiSubInput(e.target.value)}
+            onBlur={() => saveSettings({ openaiMonthlySubscriptionJpy: Number(openaiSubInput) || 0 })}
+            className={inputClass}
+            placeholder="例: 3000"
+          />
+        </Field>
+        <Field label="ChatGPT 更新日 (1〜28日、任意)">
+          <input
+            type="number"
+            min={1}
+            max={28}
+            value={openaiRenewalDayInput}
+            onChange={(e) => setOpenaiRenewalDayInput(e.target.value)}
+            onBlur={() => saveSettings({ openaiSubscriptionRenewalDay: openaiRenewalDayInput })}
+            className={inputClass}
+            placeholder="例: 5"
+          />
+        </Field>
+        <Field label="Claude Pro/Max 月額 (USD)">
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={anthropicSubInput}
+            onChange={(e) => setAnthropicSubInput(e.target.value)}
+            onBlur={() => saveSettings({ anthropicMonthlySubscriptionUsd: Number(anthropicSubInput) || 0 })}
+            className={inputClass}
+            placeholder="例: 20"
+          />
+        </Field>
+        {Number(anthropicSubInput) > 0 && settings.fx.rate && (
+          <p className="text-xs text-gray-400">
+            現在のレートで約{formatJpy(Number(anthropicSubInput) * Number(settings.fx.rate))}
+            (USD/JPY {settings.fx.rate})
+          </p>
+        )}
+        <Field label="Claude 更新日 (1〜28日、任意)">
+          <input
+            type="number"
+            min={1}
+            max={28}
+            value={anthropicRenewalDayInput}
+            onChange={(e) => setAnthropicRenewalDayInput(e.target.value)}
+            onBlur={() => saveSettings({ anthropicSubscriptionRenewalDay: anthropicRenewalDayInput })}
+            className={inputClass}
+            placeholder="例: 12"
+          />
+        </Field>
+        <p className="text-xs text-gray-400">
+          更新日を設定すると、その日にWeb Pushで料金確認のリマインドが届きます(1〜28日のみ指定可、
+          月によって日数が違うため29日以降は使えません)。
+        </p>
       </Section>
 
       <Section title="Gemini / Google Cloud Billing 接続先">

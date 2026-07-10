@@ -39,12 +39,23 @@ Cookieの署名検証に失敗している可能性が高い。`SESSION_SECRET` 
 
 ## launchd起動後にアプリが立ち上がらない
 
-`logs/launchd.err.log` を確認する。多くの場合 `npm run build` を実行していないことが原因。
+`~/Library/Logs/ai-usage-monitor/launchd.err.log` を確認する。多くの場合 `npm run build` を実行していないことが原因。
 
 ```bash
-cat logs/launchd.err.log
+cat ~/Library/Logs/ai-usage-monitor/launchd.err.log
 npm run service:status
 ```
+
+## launchdで `last exit code = 78: EX_CONFIG` が出て、ログに何も書かれない
+
+plist内のログ出力先 (`StandardOutPath` / `StandardErrorPath`) がデスクトップ・書類・
+ダウンロードなどの**macOS保護フォルダ配下**を指しているとこうなる。launchdはTCC保護
+フォルダ内のファイルを開けず、プロセス起動前に失敗するためログも一切残らない。
+`npm run service:install` を実行し直せば、ログ出力先が `~/Library/Logs/ai-usage-monitor/`
+に設定された最新のplistで上書きされる。
+
+一度この状態でクラッシュループに入るとlaunchdが再起動を長時間抑制することがある。
+その場合は `npm run service:uninstall` → `npm run service:install` で登録し直す。
 
 ## ポート3000が使用中
 
