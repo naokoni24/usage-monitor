@@ -139,7 +139,7 @@ export default function DashboardPage() {
                         rel="noreferrer"
                         className="text-xs text-blue-600 hover:underline dark:text-blue-400"
                       >
-                        詳細 ↗
+                        プラン詳細 ↗
                       </a>
                     )}
                   </div>
