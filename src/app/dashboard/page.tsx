@@ -15,7 +15,7 @@ const SUBSCRIPTION_LABEL: Record<DashboardResponse['providers'][number]['provide
 };
 
 const SUBSCRIPTION_DETAILS_URL: Record<DashboardResponse['providers'][number]['provider'], string> = {
-  openai: 'https://chatgpt.com/#settings/Subscription',
+  openai: 'https://chatgpt.com/ja-JP/pricing/',
   anthropic: 'https://claude.ai/settings/billing',
   gemini: '',
 };
