@@ -8,6 +8,12 @@ import { LimitCard } from '@/components/dashboard/limit-card';
 import { ProgressBar } from '@/components/progress-bar';
 import { formatJpy, formatPercent, formatRelativeHours, formatDateTime, formatShortDate } from '@/lib/format';
 
+const SUBSCRIPTION_LABEL: Record<DashboardResponse['providers'][number]['provider'], string> = {
+  openai: 'ChatGPT Plus/Pro',
+  anthropic: 'Claude Pro/Max',
+  gemini: 'Gemini',
+};
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +112,28 @@ export default function DashboardPage() {
       >
         {syncing ? '同期中...' : '今すぐ同期'}
       </button>
+
+      {data.providers.some((c) => c.monthlySubscriptionCurrency) && (
+        <>
+          <h2 className="mb-2 text-sm font-semibold text-gray-500 dark:text-gray-400">月額サブスクリプション</h2>
+          <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {data.providers
+              .filter((c) => c.monthlySubscriptionCurrency)
+              .map((c) => (
+                <div
+                  key={c.provider}
+                  className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5 dark:bg-neutral-900 dark:ring-white/10"
+                >
+                  <h3 className="mb-2 font-semibold">{SUBSCRIPTION_LABEL[c.provider]}</h3>
+                  <p className="text-lg font-bold">{formatJpy(c.monthlySubscriptionJpy)}</p>
+                  {c.monthlySubscriptionCurrency === 'USD' && c.monthlySubscriptionOriginal && (
+                    <p className="text-xs text-gray-400">${c.monthlySubscriptionOriginal}</p>
+                  )}
+                </div>
+              ))}
+          </div>
+        </>
+      )}
 
       <h2 className="mb-2 text-sm font-semibold text-gray-500 dark:text-gray-400">API料金</h2>
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
