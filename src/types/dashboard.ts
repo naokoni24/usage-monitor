@@ -28,6 +28,8 @@ export interface ProviderUsageCard {
   monthlySubscriptionJpy: number | null;
   monthlySubscriptionOriginal: string | null;
   monthlySubscriptionCurrency: string | null;
+  /** User-editable plan name (e.g. "ChatGPT Plus"), since plan tiers vary per account. */
+  monthlySubscriptionName: string | null;
   inputTokens: number | null;
   outputTokens: number | null;
   requestCount: number | null;

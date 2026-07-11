@@ -44,9 +44,10 @@ interface SubscriptionFee {
   jpy: number | null;
   original: string | null;
   currency: string | null;
+  name: string | null;
 }
 
-const NO_SUBSCRIPTION_FEE: SubscriptionFee = { jpy: null, original: null, currency: null };
+const NO_SUBSCRIPTION_FEE: SubscriptionFee = { jpy: null, original: null, currency: null, name: null };
 
 async function getMonthlySubscriptionFee(
   provider: (typeof COST_PROVIDERS)[number],
@@ -57,7 +58,8 @@ async function getMonthlySubscriptionFee(
     const raw = await getAppSetting(APP_SETTING_KEYS.openaiMonthlySubscriptionJpy);
     const value = raw ? Number(raw) : null;
     if (!value || !Number.isFinite(value) || value <= 0) return NO_SUBSCRIPTION_FEE;
-    return { jpy: value, original: String(value), currency: 'JPY' };
+    const name = (await getAppSetting(APP_SETTING_KEYS.openaiSubscriptionName)) || 'ChatGPT Plus';
+    return { jpy: value, original: String(value), currency: 'JPY', name };
   }
   if (provider === 'anthropic') {
     // Claude Pro/Max billed in USD - convert using the same rate as API costs.
@@ -65,7 +67,8 @@ async function getMonthlySubscriptionFee(
     const value = raw ? Number(raw) : null;
     if (!value || !Number.isFinite(value) || value <= 0) return NO_SUBSCRIPTION_FEE;
     const jpy = usdJpyRate ? Number(convertUsdToJpy(String(value), usdJpyRate)) : null;
-    return { jpy, original: String(value), currency: 'USD' };
+    const name = (await getAppSetting(APP_SETTING_KEYS.anthropicSubscriptionName)) || 'Claude Pro';
+    return { jpy, original: String(value), currency: 'USD', name };
   }
   return NO_SUBSCRIPTION_FEE; // Gemini has no equivalent flat subscription fee
 }
@@ -145,6 +148,7 @@ async function buildProviderCard(
     monthlySubscriptionJpy: subscriptionFee.jpy,
     monthlySubscriptionOriginal: subscriptionFee.original,
     monthlySubscriptionCurrency: subscriptionFee.currency,
+    monthlySubscriptionName: subscriptionFee.name,
     currencyOriginal: monthRows[0]?.currencyOriginal ?? null,
     inputTokens: sumField('inputTokens'),
     outputTokens: sumField('outputTokens'),

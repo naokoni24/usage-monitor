@@ -41,6 +41,8 @@ export async function GET() {
     anthropicMonthlySubscriptionUsd: Number(appSettings[APP_SETTING_KEYS.anthropicMonthlySubscriptionUsd] ?? 0),
     openaiSubscriptionRenewalDay: appSettings[APP_SETTING_KEYS.openaiSubscriptionRenewalDay] ?? '',
     anthropicSubscriptionRenewalDay: appSettings[APP_SETTING_KEYS.anthropicSubscriptionRenewalDay] ?? '',
+    openaiSubscriptionName: appSettings[APP_SETTING_KEYS.openaiSubscriptionName] || 'ChatGPT Plus',
+    anthropicSubscriptionName: appSettings[APP_SETTING_KEYS.anthropicSubscriptionName] || 'Claude Pro',
     // Secret/credential presence only - never the values themselves.
     secrets: {
       openaiAdminKeyConfigured: Boolean(process.env.OPENAI_ADMIN_API_KEY),
@@ -73,6 +75,8 @@ const putSchema = z.object({
   anthropicMonthlySubscriptionUsd: z.number().min(0).optional(),
   openaiSubscriptionRenewalDay: z.string().regex(/^([1-9]|1[0-9]|2[0-8])?$/).optional(),
   anthropicSubscriptionRenewalDay: z.string().regex(/^([1-9]|1[0-9]|2[0-8])?$/).optional(),
+  openaiSubscriptionName: z.string().max(50).optional(),
+  anthropicSubscriptionName: z.string().max(50).optional(),
 });
 
 export async function PUT(request: NextRequest) {
@@ -145,6 +149,12 @@ export async function PUT(request: NextRequest) {
   }
   if (data.anthropicSubscriptionRenewalDay !== undefined) {
     await setAppSetting(APP_SETTING_KEYS.anthropicSubscriptionRenewalDay, data.anthropicSubscriptionRenewalDay);
+  }
+  if (data.openaiSubscriptionName !== undefined) {
+    await setAppSetting(APP_SETTING_KEYS.openaiSubscriptionName, data.openaiSubscriptionName);
+  }
+  if (data.anthropicSubscriptionName !== undefined) {
+    await setAppSetting(APP_SETTING_KEYS.anthropicSubscriptionName, data.anthropicSubscriptionName);
   }
 
   return NextResponse.json({ ok: true });

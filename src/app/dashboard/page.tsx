@@ -9,9 +9,15 @@ import { ProgressBar } from '@/components/progress-bar';
 import { formatJpy, formatPercent, formatRelativeHours, formatDateTime, formatShortDate } from '@/lib/format';
 
 const SUBSCRIPTION_LABEL: Record<DashboardResponse['providers'][number]['provider'], string> = {
-  openai: 'ChatGPT Plus/Pro',
-  anthropic: 'Claude Pro/Max',
+  openai: 'ChatGPT Plus',
+  anthropic: 'Claude Pro',
   gemini: 'Gemini',
+};
+
+const SUBSCRIPTION_DETAILS_URL: Record<DashboardResponse['providers'][number]['provider'], string> = {
+  openai: 'https://chatgpt.com/#settings/Subscription',
+  anthropic: 'https://claude.ai/settings/billing',
+  gemini: '',
 };
 
 export default function DashboardPage() {
@@ -124,7 +130,19 @@ export default function DashboardPage() {
                   key={c.provider}
                   className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5 dark:bg-neutral-900 dark:ring-white/10"
                 >
-                  <h3 className="mb-2 font-semibold">{SUBSCRIPTION_LABEL[c.provider]}</h3>
+                  <div className="mb-2 flex items-center gap-2">
+                    <h3 className="font-semibold">{c.monthlySubscriptionName ?? SUBSCRIPTION_LABEL[c.provider]}</h3>
+                    {SUBSCRIPTION_DETAILS_URL[c.provider] && (
+                      <a
+                        href={SUBSCRIPTION_DETAILS_URL[c.provider]}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+                      >
+                        詳細 ↗
+                      </a>
+                    )}
+                  </div>
                   <p className="text-lg font-bold">{formatJpy(c.monthlySubscriptionJpy)}</p>
                   {c.monthlySubscriptionCurrency === 'USD' && c.monthlySubscriptionOriginal && (
                     <p className="text-xs text-gray-400">${c.monthlySubscriptionOriginal}</p>

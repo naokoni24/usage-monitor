@@ -209,6 +209,7 @@ components:
         monthlySubscriptionJpy: { type: number, nullable: true, description: "Flat monthly subscription fee converted to JPY (ChatGPT Plus/Pro, Claude Pro/Max), manually entered - not fetched from any API" }
         monthlySubscriptionOriginal: { type: string, nullable: true, description: "Subscription fee as entered (JPY for OpenAI, USD for Anthropic)" }
         monthlySubscriptionCurrency: { type: string, nullable: true, enum: [JPY, USD] }
+        monthlySubscriptionName: { type: string, nullable: true, description: "User-editable plan name (e.g. 'ChatGPT Plus'), settable in /api/settings" }
         currencyOriginal: { type: string, nullable: true }
         inputTokens: { type: integer, nullable: true }
         outputTokens: { type: integer, nullable: true }

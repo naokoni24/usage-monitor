@@ -25,6 +25,10 @@ export const APP_SETTING_KEYS = {
   // asking the user to re-check/re-enter the fee, since it cannot be fetched.
   openaiSubscriptionRenewalDay: 'openaiSubscriptionRenewalDay',
   anthropicSubscriptionRenewalDay: 'anthropicSubscriptionRenewalDay',
+  // Display name for each subscription (plan tiers vary per account, e.g. "ChatGPT Plus"
+  // vs "ChatGPT Pro"), editable since it can't be inferred from any API.
+  openaiSubscriptionName: 'openaiSubscriptionName',
+  anthropicSubscriptionName: 'anthropicSubscriptionName',
 } as const;
 
 export async function getAppSetting(key: string): Promise<string | null> {

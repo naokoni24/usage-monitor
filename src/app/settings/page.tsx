@@ -25,6 +25,8 @@ interface SettingsResponse {
   anthropicMonthlySubscriptionUsd: number;
   openaiSubscriptionRenewalDay: string;
   anthropicSubscriptionRenewalDay: string;
+  openaiSubscriptionName: string;
+  anthropicSubscriptionName: string;
   secrets: {
     openaiAdminKeyConfigured: boolean;
     anthropicAdminKeyConfigured: boolean;
@@ -87,6 +89,8 @@ export default function SettingsPage() {
   const [anthropicSubInput, setAnthropicSubInput] = useState('');
   const [openaiRenewalDayInput, setOpenaiRenewalDayInput] = useState('');
   const [anthropicRenewalDayInput, setAnthropicRenewalDayInput] = useState('');
+  const [openaiSubNameInput, setOpenaiSubNameInput] = useState('');
+  const [anthropicSubNameInput, setAnthropicSubNameInput] = useState('');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -119,6 +123,8 @@ export default function SettingsPage() {
         setAnthropicSubInput(String(data.anthropicMonthlySubscriptionUsd || ''));
         setOpenaiRenewalDayInput(data.openaiSubscriptionRenewalDay);
         setAnthropicRenewalDayInput(data.anthropicSubscriptionRenewalDay);
+        setOpenaiSubNameInput(data.openaiSubscriptionName);
+        setAnthropicSubNameInput(data.anthropicSubscriptionName);
       });
   }, [router]);
 
@@ -287,12 +293,22 @@ export default function SettingsPage() {
 
       <Section title="月額サブスクリプション料金">
         <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-          ChatGPT Plus/Pro・Claude Pro/Maxなどの固定月額費用。API利用料とは別課金で
+          ChatGPT・Claudeなどの固定月額費用。API利用料とは別課金で
           自動取得できないため、金額が分かっている場合のみ入力してください。
           ChatGPTは円建て、Claudeはドル建てで課金されるため、それぞれの通貨で入力すると
           ダッシュボード側で現在の為替レートを使って円換算します。
         </p>
-        <Field label="ChatGPT Plus/Pro 月額 (円)">
+        <Field label="ChatGPT プラン名">
+          <input
+            type="text"
+            value={openaiSubNameInput}
+            onChange={(e) => setOpenaiSubNameInput(e.target.value)}
+            onBlur={() => saveSettings({ openaiSubscriptionName: openaiSubNameInput })}
+            className={inputClass}
+            placeholder="例: ChatGPT Plus"
+          />
+        </Field>
+        <Field label="ChatGPT 月額 (円)">
           <input
             type="number"
             min={0}
@@ -315,7 +331,17 @@ export default function SettingsPage() {
             placeholder="例: 5"
           />
         </Field>
-        <Field label="Claude Pro/Max 月額 (USD)">
+        <Field label="Claude プラン名">
+          <input
+            type="text"
+            value={anthropicSubNameInput}
+            onChange={(e) => setAnthropicSubNameInput(e.target.value)}
+            onBlur={() => saveSettings({ anthropicSubscriptionName: anthropicSubNameInput })}
+            className={inputClass}
+            placeholder="例: Claude Pro"
+          />
+        </Field>
+        <Field label="Claude 月額 (USD)">
           <input
             type="number"
             min={0}
