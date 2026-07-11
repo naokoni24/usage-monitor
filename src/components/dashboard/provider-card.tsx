@@ -56,17 +56,13 @@ export function ProviderCard({ card, usdJpyRate }: { card: ProviderUsageCard; us
         </div>
       </div>
 
-      {card.monthlySubscriptionJpy !== null && (
-        <div className="mb-3 rounded-lg bg-gray-50 p-2 dark:bg-neutral-800">
-          <p className="mb-0.5 text-xs font-medium text-gray-400">月額サブスクリプション(固定・手動入力)</p>
-          <div className="flex items-baseline justify-between">
-            <span className="text-sm font-semibold">{formatJpy(card.monthlySubscriptionJpy)}</span>
-            {card.monthlySubscriptionCurrency === 'USD' && card.monthlySubscriptionOriginal && (
-              <span className="text-xs text-gray-400">${card.monthlySubscriptionOriginal}</span>
-            )}
-          </div>
-        </div>
-      )}
+      <p className="mb-1 text-xs font-medium text-gray-400">月額サブスクリプション</p>
+      <div className="mb-3">
+        <p className="text-lg font-bold">{formatJpy(card.monthlySubscriptionJpy)}</p>
+        {card.monthlySubscriptionCurrency === 'USD' && card.monthlySubscriptionOriginal && (
+          <p className="text-xs text-gray-400">${card.monthlySubscriptionOriginal}</p>
+        )}
+      </div>
 
       <dl className="grid grid-cols-3 gap-2 text-xs text-gray-500 dark:text-gray-400">
         <div>
