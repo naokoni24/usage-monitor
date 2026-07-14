@@ -74,7 +74,7 @@ export async function GET() {
       appSettings[APP_SETTING_KEYS.anthropicSubscriptionName] || 'Claude Pro',
     openaiRemainingCreditUsd: appSettings[APP_SETTING_KEYS.openaiRemainingCreditUsd] ?? '',
     anthropicRemainingCreditUsd: appSettings[APP_SETTING_KEYS.anthropicRemainingCreditUsd] ?? '',
-    geminiRemainingCreditUsd: appSettings[APP_SETTING_KEYS.geminiRemainingCreditUsd] ?? '',
+    geminiRemainingCreditJpy: appSettings[APP_SETTING_KEYS.geminiRemainingCreditJpy] ?? '',
     geminiAiStudioMonthTotalJpy: appSettings[APP_SETTING_KEYS.geminiAiStudioMonthTotalJpy] ?? '',
     // Secret/credential presence only - never the values themselves.
     secrets: {
@@ -126,7 +126,7 @@ const putSchema = z.object({
     .string()
     .regex(/^$|^\d+(\.\d+)?$/)
     .optional(),
-  geminiRemainingCreditUsd: z
+  geminiRemainingCreditJpy: z
     .string()
     .regex(/^$|^\d+(\.\d+)?$/)
     .optional(),
@@ -247,8 +247,8 @@ export async function PUT(request: NextRequest) {
       data.anthropicRemainingCreditUsd,
     );
   }
-  if (data.geminiRemainingCreditUsd !== undefined) {
-    await setAppSetting(APP_SETTING_KEYS.geminiRemainingCreditUsd, data.geminiRemainingCreditUsd);
+  if (data.geminiRemainingCreditJpy !== undefined) {
+    await setAppSetting(APP_SETTING_KEYS.geminiRemainingCreditJpy, data.geminiRemainingCreditJpy);
   }
   if (data.geminiAiStudioMonthTotalJpy !== undefined) {
     await setAppSetting(

@@ -87,22 +87,29 @@ async function getMonthlySubscriptionFee(
   return NO_SUBSCRIPTION_FEE; // Gemini has no equivalent flat subscription fee
 }
 
-async function getRemainingCreditUsd(
+interface RemainingCredit {
+  original: string | null;
+  currency: 'USD' | 'JPY' | null;
+}
+
+const NO_REMAINING_CREDIT: RemainingCredit = { original: null, currency: null };
+
+async function getRemainingCredit(
   provider: (typeof COST_PROVIDERS)[number],
-): Promise<string | null> {
-  const key =
+): Promise<RemainingCredit> {
+  const [key, currency]: [string, 'USD' | 'JPY'] =
     provider === 'openai'
-      ? APP_SETTING_KEYS.openaiRemainingCreditUsd
+      ? [APP_SETTING_KEYS.openaiRemainingCreditUsd, 'USD']
       : provider === 'anthropic'
-        ? APP_SETTING_KEYS.anthropicRemainingCreditUsd
-        : APP_SETTING_KEYS.geminiRemainingCreditUsd;
+        ? [APP_SETTING_KEYS.anthropicRemainingCreditUsd, 'USD']
+        : [APP_SETTING_KEYS.geminiRemainingCreditJpy, 'JPY'];
   const raw = await getAppSetting(key);
-  if (raw === null || raw.trim() === '') return null;
+  if (raw === null || raw.trim() === '') return NO_REMAINING_CREDIT;
   try {
     const value = new Decimal(raw);
-    return value.isFinite() && value.gte(0) ? value.toString() : null;
+    return value.isFinite() && value.gte(0) ? { original: value.toString(), currency } : NO_REMAINING_CREDIT;
   } catch {
-    return null;
+    return NO_REMAINING_CREDIT;
   }
 }
 
@@ -184,9 +191,9 @@ async function buildProviderCard(
     warnings.push(`${provider}: ${connection.lastErrorMessage}`);
   }
 
-  const [subscriptionFee, remainingCreditUsd, geminiAiStudioMonthTotalJpy] = await Promise.all([
+  const [subscriptionFee, remainingCredit, geminiAiStudioMonthTotalJpy] = await Promise.all([
     getMonthlySubscriptionFee(provider, usdJpyRate),
-    getRemainingCreditUsd(provider),
+    getRemainingCredit(provider),
     provider === 'gemini' ? getGeminiAiStudioMonthTotalJpy() : Promise.resolve(null),
   ]);
   const monthCostManuallyEntered = geminiAiStudioMonthTotalJpy !== null;
@@ -213,7 +220,8 @@ async function buildProviderCard(
     monthlySubscriptionOriginal: subscriptionFee.original,
     monthlySubscriptionCurrency: subscriptionFee.currency,
     monthlySubscriptionName: subscriptionFee.name,
-    remainingCreditUsd,
+    remainingCreditOriginal: remainingCredit.original,
+    remainingCreditCurrency: remainingCredit.currency,
     currencyOriginal: monthRows[0]?.currencyOriginal ?? null,
     inputTokens: sumField('inputTokens'),
     outputTokens: sumField('outputTokens'),
@@ -247,7 +255,7 @@ async function buildLimitCard(
   const weeklyRow = rows.find((r) => r.limitType === 'weekly') ?? null;
 
   const toWindow = (row: typeof fiveHourRow): LimitWindow | null =>
-    row
+    row && now.getTime() - row.collectedAt.getTime() <= SYNC_STALE_MS
       ? {
           usedPercent: row.usedPercent,
           remainingPercent: row.remainingPercent,

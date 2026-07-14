@@ -230,12 +230,13 @@ components:
             nullable: true,
             description: "User-editable plan name (e.g. 'ChatGPT Plus'), settable in /api/settings",
           }
-        remainingCreditUsd:
+        remainingCreditOriginal:
           {
             type: string,
             nullable: true,
-            description: 'Prepaid API-credit balance in USD, manually entered in settings because usage APIs do not expose it',
+            description: 'Prepaid API-credit balance as entered (USD for OpenAI/Anthropic, JPY for Gemini), manually entered in settings because usage APIs do not expose it',
           }
+        remainingCreditCurrency: { type: string, nullable: true, enum: [JPY, USD] }
         currencyOriginal: { type: string, nullable: true }
         inputTokens: { type: integer, nullable: true }
         outputTokens: { type: integer, nullable: true }

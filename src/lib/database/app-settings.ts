@@ -33,7 +33,9 @@ export const APP_SETTING_KEYS = {
   // they are entered manually and shown on the corresponding dashboard card.
   openaiRemainingCreditUsd: 'openaiRemainingCreditUsd',
   anthropicRemainingCreditUsd: 'anthropicRemainingCreditUsd',
-  geminiRemainingCreditUsd: 'geminiRemainingCreditUsd',
+  // Gemini/AI Studio credit is typically topped up in JPY for JP accounts, so unlike
+  // the other two this is entered and stored directly in JPY (no FX conversion needed).
+  geminiRemainingCreditJpy: 'geminiRemainingCreditJpy',
   // AI Studio has no public cost-reporting API. When its displayed monthly
   // total differs from the Cloud Billing export, this value takes precedence.
   geminiAiStudioMonthTotalJpy: 'geminiAiStudioMonthTotalJpy',

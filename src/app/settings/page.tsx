@@ -29,7 +29,7 @@ interface SettingsResponse {
   anthropicSubscriptionName: string;
   openaiRemainingCreditUsd: string;
   anthropicRemainingCreditUsd: string;
-  geminiRemainingCreditUsd: string;
+  geminiRemainingCreditJpy: string;
   geminiAiStudioMonthTotalJpy: string;
   secrets: {
     openaiAdminKeyConfigured: boolean;
@@ -135,7 +135,7 @@ export default function SettingsPage() {
         setAnthropicSubNameInput(data.anthropicSubscriptionName);
         setOpenaiRemainingCreditInput(data.openaiRemainingCreditUsd);
         setAnthropicRemainingCreditInput(data.anthropicRemainingCreditUsd);
-        setGeminiRemainingCreditInput(data.geminiRemainingCreditUsd);
+        setGeminiRemainingCreditInput(data.geminiRemainingCreditJpy);
         setGeminiAiStudioMonthTotalInput(data.geminiAiStudioMonthTotalJpy);
       });
   }, [router]);
@@ -421,7 +421,7 @@ export default function SettingsPage() {
 
       <Section title="API残クレジット">
         <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-          利用料APIでは残高を取得できないため、各サービスのコンソールに表示される残クレジットをUSDで入力してください。空欄のままならダッシュボードには「未設定」と表示されます。
+          利用料APIでは残高を取得できないため、各サービスのコンソールに表示される残クレジットを入力してください(OpenAI/Claudeは USD、Geminiは 円)。空欄のままならダッシュボードには「未設定」と表示されます。
         </p>
         <Field label="OpenAI 残クレジット (USD)">
           <input
@@ -449,16 +449,16 @@ export default function SettingsPage() {
             placeholder="例: 20.00"
           />
         </Field>
-        <Field label="Gemini 残クレジット (USD)">
+        <Field label="Gemini 残クレジット (円)">
           <input
             type="number"
             min={0}
-            step="0.01"
+            step="1"
             value={geminiRemainingCreditInput}
             onChange={(e) => setGeminiRemainingCreditInput(e.target.value)}
-            onBlur={() => saveSettings({ geminiRemainingCreditUsd: geminiRemainingCreditInput })}
+            onBlur={() => saveSettings({ geminiRemainingCreditJpy: geminiRemainingCreditInput })}
             className={inputClass}
-            placeholder="例: 5.00"
+            placeholder="例: 500"
           />
         </Field>
         <Field label="Gemini AI Studio 今月合計 (円、任意)">

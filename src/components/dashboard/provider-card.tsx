@@ -72,17 +72,19 @@ export function ProviderCard({
 
       <div className="mb-3 rounded-xl bg-gray-50 px-3 py-2 dark:bg-neutral-800">
         <p className="text-xs text-gray-500 dark:text-gray-400">残クレジット</p>
-        {card.remainingCreditUsd === null ? (
+        {card.remainingCreditOriginal === null ? (
           <p className="text-sm font-medium text-gray-500 dark:text-gray-400">未設定</p>
-        ) : (
+        ) : card.remainingCreditCurrency === 'JPY' ? (
+          <p className="text-lg font-bold">{formatJpy(Number(card.remainingCreditOriginal))}</p>
+        ) : usdJpyRate ? (
           <>
-            <p className="text-lg font-bold">USD {card.remainingCreditUsd}</p>
-            {usdJpyRate && (
-              <p className="text-xs text-gray-400">
-                約{formatJpy(Number(card.remainingCreditUsd) * Number(usdJpyRate))}
-              </p>
-            )}
+            <p className="text-lg font-bold">
+              {formatJpy(Number(card.remainingCreditOriginal) * Number(usdJpyRate))}
+            </p>
+            <p className="text-xs text-gray-400">USD {card.remainingCreditOriginal}</p>
           </>
+        ) : (
+          <p className="text-lg font-bold">USD {card.remainingCreditOriginal}</p>
         )}
       </div>
 

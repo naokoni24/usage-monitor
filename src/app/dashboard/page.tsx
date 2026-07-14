@@ -145,7 +145,7 @@ export default function DashboardPage() {
                   </div>
                   <p className="text-lg font-bold">{formatJpy(c.monthlySubscriptionJpy)}</p>
                   {c.monthlySubscriptionCurrency === 'USD' && c.monthlySubscriptionOriginal && (
-                    <p className="text-xs text-gray-400">${c.monthlySubscriptionOriginal}</p>
+                    <p className="text-xs text-gray-400">USD {c.monthlySubscriptionOriginal}</p>
                   )}
                 </div>
               ))}
