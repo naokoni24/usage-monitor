@@ -27,6 +27,10 @@ interface SettingsResponse {
   anthropicSubscriptionRenewalDay: string;
   openaiSubscriptionName: string;
   anthropicSubscriptionName: string;
+  openaiRemainingCreditUsd: string;
+  anthropicRemainingCreditUsd: string;
+  geminiRemainingCreditUsd: string;
+  geminiAiStudioMonthTotalJpy: string;
   secrets: {
     openaiAdminKeyConfigured: boolean;
     anthropicAdminKeyConfigured: boolean;
@@ -91,6 +95,10 @@ export default function SettingsPage() {
   const [anthropicRenewalDayInput, setAnthropicRenewalDayInput] = useState('');
   const [openaiSubNameInput, setOpenaiSubNameInput] = useState('');
   const [anthropicSubNameInput, setAnthropicSubNameInput] = useState('');
+  const [openaiRemainingCreditInput, setOpenaiRemainingCreditInput] = useState('');
+  const [anthropicRemainingCreditInput, setAnthropicRemainingCreditInput] = useState('');
+  const [geminiRemainingCreditInput, setGeminiRemainingCreditInput] = useState('');
+  const [geminiAiStudioMonthTotalInput, setGeminiAiStudioMonthTotalInput] = useState('');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -125,6 +133,10 @@ export default function SettingsPage() {
         setAnthropicRenewalDayInput(data.anthropicSubscriptionRenewalDay);
         setOpenaiSubNameInput(data.openaiSubscriptionName);
         setAnthropicSubNameInput(data.anthropicSubscriptionName);
+        setOpenaiRemainingCreditInput(data.openaiRemainingCreditUsd);
+        setAnthropicRemainingCreditInput(data.anthropicRemainingCreditUsd);
+        setGeminiRemainingCreditInput(data.geminiRemainingCreditUsd);
+        setGeminiAiStudioMonthTotalInput(data.geminiAiStudioMonthTotalJpy);
       });
   }, [router]);
 
@@ -150,7 +162,10 @@ export default function SettingsPage() {
     await saveSettings({ providerToggles: { [provider]: enabled } });
     setSettings((prev) =>
       prev
-        ? { ...prev, providers: prev.providers.map((p) => (p.provider === provider ? { ...p, enabled } : p)) }
+        ? {
+            ...prev,
+            providers: prev.providers.map((p) => (p.provider === provider ? { ...p, enabled } : p)),
+          }
         : prev,
     );
   }
@@ -214,14 +229,35 @@ export default function SettingsPage() {
       <Section title="接続状況 (APIキー)">
         <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
           APIキー・秘密鍵そのものはセキュリティ上の理由でこの画面から入力できません。未設定のものは
-          プロジェクトの <code className="rounded bg-gray-100 px-1 dark:bg-neutral-800">.env.local</code>{' '}
+          プロジェクトの{' '}
+          <code className="rounded bg-gray-100 px-1 dark:bg-neutral-800">.env.local</code>{' '}
           に追加してサーバーを再起動してください (手順は各 docs/SETUP_*.md を参照)。
         </p>
-        <SecretRow label="OpenAI Admin APIキー" configured={settings.secrets.openaiAdminKeyConfigured} envVar="OPENAI_ADMIN_API_KEY" />
-        <SecretRow label="Anthropic Admin APIキー" configured={settings.secrets.anthropicAdminKeyConfigured} envVar="ANTHROPIC_ADMIN_API_KEY" />
-        <SecretRow label="Google サービスアカウントJSON" configured={settings.secrets.googleServiceAccountConfigured} envVar="GOOGLE_SERVICE_ACCOUNT_JSON" />
-        <SecretRow label="Web Push (VAPID)" configured={settings.secrets.vapidConfigured} envVar="NEXT_PUBLIC_VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY" />
-        <SecretRow label="為替レート自動取得API" configured={settings.secrets.fxApiConfigured} envVar="FX_API_URL (任意)" />
+        <SecretRow
+          label="OpenAI Admin APIキー"
+          configured={settings.secrets.openaiAdminKeyConfigured}
+          envVar="OPENAI_ADMIN_API_KEY"
+        />
+        <SecretRow
+          label="Anthropic Admin APIキー"
+          configured={settings.secrets.anthropicAdminKeyConfigured}
+          envVar="ANTHROPIC_ADMIN_API_KEY"
+        />
+        <SecretRow
+          label="Google サービスアカウントJSON"
+          configured={settings.secrets.googleServiceAccountConfigured}
+          envVar="GOOGLE_SERVICE_ACCOUNT_JSON"
+        />
+        <SecretRow
+          label="Web Push (VAPID)"
+          configured={settings.secrets.vapidConfigured}
+          envVar="NEXT_PUBLIC_VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY"
+        />
+        <SecretRow
+          label="為替レート自動取得API"
+          configured={settings.secrets.fxApiConfigured}
+          envVar="FX_API_URL (任意)"
+        />
       </Section>
 
       <Section title="月額上限・為替">
@@ -314,7 +350,9 @@ export default function SettingsPage() {
             min={0}
             value={openaiSubInput}
             onChange={(e) => setOpenaiSubInput(e.target.value)}
-            onBlur={() => saveSettings({ openaiMonthlySubscriptionJpy: Number(openaiSubInput) || 0 })}
+            onBlur={() =>
+              saveSettings({ openaiMonthlySubscriptionJpy: Number(openaiSubInput) || 0 })
+            }
             className={inputClass}
             placeholder="例: 3000"
           />
@@ -348,7 +386,9 @@ export default function SettingsPage() {
             step="0.01"
             value={anthropicSubInput}
             onChange={(e) => setAnthropicSubInput(e.target.value)}
-            onBlur={() => saveSettings({ anthropicMonthlySubscriptionUsd: Number(anthropicSubInput) || 0 })}
+            onBlur={() =>
+              saveSettings({ anthropicMonthlySubscriptionUsd: Number(anthropicSubInput) || 0 })
+            }
             className={inputClass}
             placeholder="例: 20"
           />
@@ -366,7 +406,9 @@ export default function SettingsPage() {
             max={28}
             value={anthropicRenewalDayInput}
             onChange={(e) => setAnthropicRenewalDayInput(e.target.value)}
-            onBlur={() => saveSettings({ anthropicSubscriptionRenewalDay: anthropicRenewalDayInput })}
+            onBlur={() =>
+              saveSettings({ anthropicSubscriptionRenewalDay: anthropicRenewalDayInput })
+            }
             className={inputClass}
             placeholder="例: 12"
           />
@@ -374,6 +416,68 @@ export default function SettingsPage() {
         <p className="text-xs text-gray-400">
           更新日を設定すると、その日にWeb Pushで料金確認のリマインドが届きます(1〜28日のみ指定可、
           月によって日数が違うため29日以降は使えません)。
+        </p>
+      </Section>
+
+      <Section title="API残クレジット">
+        <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
+          利用料APIでは残高を取得できないため、各サービスのコンソールに表示される残クレジットをUSDで入力してください。空欄のままならダッシュボードには「未設定」と表示されます。
+        </p>
+        <Field label="OpenAI 残クレジット (USD)">
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={openaiRemainingCreditInput}
+            onChange={(e) => setOpenaiRemainingCreditInput(e.target.value)}
+            onBlur={() => saveSettings({ openaiRemainingCreditUsd: openaiRemainingCreditInput })}
+            className={inputClass}
+            placeholder="例: 12.50"
+          />
+        </Field>
+        <Field label="Claude API 残クレジット (USD)">
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={anthropicRemainingCreditInput}
+            onChange={(e) => setAnthropicRemainingCreditInput(e.target.value)}
+            onBlur={() =>
+              saveSettings({ anthropicRemainingCreditUsd: anthropicRemainingCreditInput })
+            }
+            className={inputClass}
+            placeholder="例: 20.00"
+          />
+        </Field>
+        <Field label="Gemini 残クレジット (USD)">
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={geminiRemainingCreditInput}
+            onChange={(e) => setGeminiRemainingCreditInput(e.target.value)}
+            onBlur={() => saveSettings({ geminiRemainingCreditUsd: geminiRemainingCreditInput })}
+            className={inputClass}
+            placeholder="例: 5.00"
+          />
+        </Field>
+        <Field label="Gemini AI Studio 今月合計 (円、任意)">
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={geminiAiStudioMonthTotalInput}
+            onChange={(e) => setGeminiAiStudioMonthTotalInput(e.target.value)}
+            onBlur={() =>
+              saveSettings({ geminiAiStudioMonthTotalJpy: geminiAiStudioMonthTotalInput })
+            }
+            className={inputClass}
+            placeholder="例: 178.81"
+          />
+        </Field>
+        <p className="text-xs text-gray-400">
+          AI Studio の「合計費用」を入力すると、Gemini
+          の今月料金とダッシュボード合計にその値を優先表示します。翌月は空欄に戻してから新しい合計を入力してください。
         </p>
       </Section>
 
@@ -426,7 +530,10 @@ export default function SettingsPage() {
 
       <Section title="通知しきい値">
         {settings.notificationRules.map((r) => (
-          <label key={`${r.ruleType}-${r.threshold}`} className="flex items-center justify-between py-1.5 text-sm">
+          <label
+            key={`${r.ruleType}-${r.threshold}`}
+            className="flex items-center justify-between py-1.5 text-sm"
+          >
             <span>
               {RULE_LABEL[r.ruleType] ?? r.ruleType}
               {r.threshold > 0 ? ` ${r.threshold}%` : ''}
@@ -445,7 +552,9 @@ export default function SettingsPage() {
             checked={settings.notificationRepeatAfterDrop}
             onChange={(e) => {
               saveSettings({ notificationRepeatAfterDrop: e.target.checked });
-              setSettings((prev) => (prev ? { ...prev, notificationRepeatAfterDrop: e.target.checked } : prev));
+              setSettings((prev) =>
+                prev ? { ...prev, notificationRepeatAfterDrop: e.target.checked } : prev,
+              );
             }}
           />
         </label>
@@ -476,7 +585,12 @@ export default function SettingsPage() {
             />
           </Field>
           <Field label="メモ">
-            <textarea value={manualMemo} onChange={(e) => setManualMemo(e.target.value)} className={inputClass} rows={2} />
+            <textarea
+              value={manualMemo}
+              onChange={(e) => setManualMemo(e.target.value)}
+              className={inputClass}
+              rows={2}
+            />
           </Field>
           <button
             type="submit"
@@ -521,7 +635,15 @@ export default function SettingsPage() {
 const inputClass =
   'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800';
 
-function SecretRow({ label, configured, envVar }: { label: string; configured: boolean; envVar: string }) {
+function SecretRow({
+  label,
+  configured,
+  envVar,
+}: {
+  label: string;
+  configured: boolean;
+  envVar: string;
+}) {
   return (
     <div className="flex items-center justify-between py-1.5 text-sm">
       <div>

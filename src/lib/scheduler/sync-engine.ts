@@ -103,9 +103,20 @@ async function persistResult(
   result: Extract<CostProviderOutcome | LimitProviderOutcome, { ok: true }>,
 ): Promise<number> {
   if ('days' in result) {
-    const fx = await resolveCurrentFxRate();
-    let updated = 0;
-    for (const day of result.days) {
+  const fx = await resolveCurrentFxRate();
+  let updated = 0;
+
+  // A development mock sync may have populated rows before the real provider
+  // was configured. Those rows have a separate `source` key and would
+  // otherwise remain for dates that the real export does not yet cover,
+  // inflating the dashboard total by mixing simulated and actual costs.
+  if (result.source !== 'mock' && result.days.length > 0) {
+    await db
+      .delete(usageDaily)
+      .where(and(eq(usageDaily.provider, provider), eq(usageDaily.source, 'mock')));
+  }
+
+  for (const day of result.days) {
       const { costJpy, appliedRate } = convertToJpy(day.costOriginal, day.currencyOriginal, fx?.rate ?? null);
       await db
         .insert(usageDaily)

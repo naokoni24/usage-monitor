@@ -1,6 +1,12 @@
 import type { ProviderUsageCard } from '@/types/dashboard';
 import { StatusBadge } from '@/components/status-badge';
-import { formatJpy, formatProviderCostUsd, formatRelativeHours, formatDateTime, formatShortDate } from '@/lib/format';
+import {
+  formatJpy,
+  formatProviderCostUsd,
+  formatRelativeHours,
+  formatDateTime,
+  formatShortDate,
+} from '@/lib/format';
 
 const PROVIDER_LABEL: Record<ProviderUsageCard['provider'], string> = {
   openai: 'OpenAI',
@@ -14,7 +20,13 @@ const PROVIDER_COST_DETAILS_URL: Record<ProviderUsageCard['provider'], string> =
   gemini: 'https://aistudio.google.com/spend?project=gen-lang-client-0399990183',
 };
 
-export function ProviderCard({ card, usdJpyRate }: { card: ProviderUsageCard; usdJpyRate: string | null }) {
+export function ProviderCard({
+  card,
+  usdJpyRate,
+}: {
+  card: ProviderUsageCard;
+  usdJpyRate: string | null;
+}) {
   return (
     <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5 dark:bg-neutral-900 dark:ring-white/10">
       <div className="mb-2 flex items-center justify-between">
@@ -46,7 +58,9 @@ export function ProviderCard({ card, usdJpyRate }: { card: ProviderUsageCard; us
           )}
         </div>
         <div>
-          <p className="text-xs text-gray-500 dark:text-gray-400">今月</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            今月{card.monthCostManuallyEntered ? ' (AI Studio)' : ''}
+          </p>
           <p className="text-lg font-bold">{formatJpy(card.monthCostJpy)}</p>
           {card.monthCostOriginal && (
             <p className="text-xs text-gray-400">
@@ -54,6 +68,22 @@ export function ProviderCard({ card, usdJpyRate }: { card: ProviderUsageCard; us
             </p>
           )}
         </div>
+      </div>
+
+      <div className="mb-3 rounded-xl bg-gray-50 px-3 py-2 dark:bg-neutral-800">
+        <p className="text-xs text-gray-500 dark:text-gray-400">残クレジット</p>
+        {card.remainingCreditUsd === null ? (
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">未設定</p>
+        ) : (
+          <>
+            <p className="text-lg font-bold">USD {card.remainingCreditUsd}</p>
+            {usdJpyRate && (
+              <p className="text-xs text-gray-400">
+                約{formatJpy(Number(card.remainingCreditUsd) * Number(usdJpyRate))}
+              </p>
+            )}
+          </>
+        )}
       </div>
 
       <dl className="grid grid-cols-3 gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -78,8 +108,18 @@ export function ProviderCard({ card, usdJpyRate }: { card: ProviderUsageCard; us
       </dl>
 
       <div className="mt-3 flex items-center justify-between text-xs text-gray-400">
-        <span title={formatDateTime(card.lastFetchedAt)}>最終取得: {formatRelativeHours(card.lastFetchedAt)}</span>
-        <span>{card.isEstimated ? '概算値' : card.confidence ? '確定値' : ''}</span>
+        <span title={formatDateTime(card.lastFetchedAt)}>
+          最終取得: {formatRelativeHours(card.lastFetchedAt)}
+        </span>
+        <span>
+          {card.monthCostManuallyEntered
+            ? 'AI Studio入力値'
+            : card.isEstimated
+              ? '概算値'
+              : card.confidence
+                ? '確定値'
+                : ''}
+        </span>
       </div>
 
       {card.errorMessage && card.status === 'error' && (

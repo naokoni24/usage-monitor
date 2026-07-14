@@ -13,7 +13,12 @@ import {
 import { getMonthlyBudgetJpy } from '@/lib/budget/monthly-budget';
 import { resolveCurrentFxRate, convertUsdToJpy } from '@/lib/currency/resolve';
 import { getAppSetting, APP_SETTING_KEYS } from '@/lib/database/app-settings';
-import { formatTokyoDate, tokyoMonthStart, tokyoNextMonthStart, tokyoYearMonth } from '@/lib/date/tokyo';
+import {
+  formatTokyoDate,
+  tokyoMonthStart,
+  tokyoNextMonthStart,
+  tokyoYearMonth,
+} from '@/lib/date/tokyo';
 import type {
   DashboardResponse,
   ProviderUsageCard,
@@ -22,7 +27,11 @@ import type {
   LimitWindow,
 } from '@/types/dashboard';
 
-const COST_PROVIDERS: Extract<Provider, 'openai' | 'anthropic' | 'gemini'>[] = ['openai', 'anthropic', 'gemini'];
+const COST_PROVIDERS: Extract<Provider, 'openai' | 'anthropic' | 'gemini'>[] = [
+  'openai',
+  'anthropic',
+  'gemini',
+];
 const LIMIT_PROVIDERS: Extract<Provider, 'codex' | 'claude-code'>[] = ['codex', 'claude-code'];
 
 const FX_STALE_MS = 3 * 24 * 60 * 60 * 1000;
@@ -47,7 +56,12 @@ interface SubscriptionFee {
   name: string | null;
 }
 
-const NO_SUBSCRIPTION_FEE: SubscriptionFee = { jpy: null, original: null, currency: null, name: null };
+const NO_SUBSCRIPTION_FEE: SubscriptionFee = {
+  jpy: null,
+  original: null,
+  currency: null,
+  name: null,
+};
 
 async function getMonthlySubscriptionFee(
   provider: (typeof COST_PROVIDERS)[number],
@@ -73,6 +87,36 @@ async function getMonthlySubscriptionFee(
   return NO_SUBSCRIPTION_FEE; // Gemini has no equivalent flat subscription fee
 }
 
+async function getRemainingCreditUsd(
+  provider: (typeof COST_PROVIDERS)[number],
+): Promise<string | null> {
+  const key =
+    provider === 'openai'
+      ? APP_SETTING_KEYS.openaiRemainingCreditUsd
+      : provider === 'anthropic'
+        ? APP_SETTING_KEYS.anthropicRemainingCreditUsd
+        : APP_SETTING_KEYS.geminiRemainingCreditUsd;
+  const raw = await getAppSetting(key);
+  if (raw === null || raw.trim() === '') return null;
+  try {
+    const value = new Decimal(raw);
+    return value.isFinite() && value.gte(0) ? value.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getGeminiAiStudioMonthTotalJpy(): Promise<string | null> {
+  const raw = await getAppSetting(APP_SETTING_KEYS.geminiAiStudioMonthTotalJpy);
+  if (raw === null || raw.trim() === '') return null;
+  try {
+    const value = new Decimal(raw);
+    return value.isFinite() && value.gte(0) ? value.toDecimalPlaces(2).toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 async function buildProviderCard(
   provider: (typeof COST_PROVIDERS)[number],
   now: Date,
@@ -92,7 +136,11 @@ async function buildProviderCard(
     .select()
     .from(usageDaily)
     .where(
-      and(eq(usageDaily.provider, provider), gte(usageDaily.usageDate, monthStart), lt(usageDaily.usageDate, monthEnd)),
+      and(
+        eq(usageDaily.provider, provider),
+        gte(usageDaily.usageDate, monthStart),
+        lt(usageDaily.usageDate, monthEnd),
+      ),
     );
   const monthRows = dedupeByDate(monthRowsRaw);
   // Provider data lags by hours to a day (and OpenAI/Anthropic bucket by UTC),
@@ -126,7 +174,9 @@ async function buildProviderCard(
 
   if (provider === 'gemini' && latestRow?.dataPeriodEnd) {
     if (now.getTime() - latestRow.dataPeriodEnd.getTime() > GEMINI_BILLING_STALE_MS) {
-      warnings.push('Google Billingの請求データが48時間以上更新されていません(反映待ちの可能性があります)');
+      warnings.push(
+        'Google Billingの請求データが48時間以上更新されていません(反映待ちの可能性があります)',
+      );
     }
   }
 
@@ -134,7 +184,12 @@ async function buildProviderCard(
     warnings.push(`${provider}: ${connection.lastErrorMessage}`);
   }
 
-  const subscriptionFee = await getMonthlySubscriptionFee(provider, usdJpyRate);
+  const [subscriptionFee, remainingCreditUsd, geminiAiStudioMonthTotalJpy] = await Promise.all([
+    getMonthlySubscriptionFee(provider, usdJpyRate),
+    getRemainingCreditUsd(provider),
+    provider === 'gemini' ? getGeminiAiStudioMonthTotalJpy() : Promise.resolve(null),
+  ]);
+  const monthCostManuallyEntered = geminiAiStudioMonthTotalJpy !== null;
 
   return {
     provider,
@@ -143,12 +198,22 @@ async function buildProviderCard(
     latestDayDate: latestRow?.usageDate ?? null,
     latestDayCostOriginal: latestRow?.costOriginal ?? null,
     latestDayCostJpy: latestRow?.costJpy ?? null,
-    monthCostOriginal: hasData ? monthCostOriginal.toString() : null,
-    monthCostJpy: hasData ? monthCostJpy.toString() : null,
+    monthCostOriginal: monthCostManuallyEntered
+      ? null
+      : hasData
+        ? monthCostOriginal.toString()
+        : null,
+    monthCostJpy: monthCostManuallyEntered
+      ? geminiAiStudioMonthTotalJpy
+      : hasData
+        ? monthCostJpy.toString()
+        : null,
+    monthCostManuallyEntered,
     monthlySubscriptionJpy: subscriptionFee.jpy,
     monthlySubscriptionOriginal: subscriptionFee.original,
     monthlySubscriptionCurrency: subscriptionFee.currency,
     monthlySubscriptionName: subscriptionFee.name,
+    remainingCreditUsd,
     currencyOriginal: monthRows[0]?.currencyOriginal ?? null,
     inputTokens: sumField('inputTokens'),
     outputTokens: sumField('outputTokens'),
@@ -222,14 +287,20 @@ export async function buildDashboard(now: Date = new Date()): Promise<DashboardR
   const fx = await resolveCurrentFxRate();
   if (!fx) {
     warnings.push('為替レートが取得できていません(FX_USD_JPYまたは手動レートを設定してください)');
-  } else if (fx.source === 'api' && fx.fetchedAt && now.getTime() - fx.fetchedAt.getTime() > FX_STALE_MS) {
+  } else if (
+    fx.source === 'api' &&
+    fx.fetchedAt &&
+    now.getTime() - fx.fetchedAt.getTime() > FX_STALE_MS
+  ) {
     warnings.push('為替レートが3日以上更新されていません');
   }
 
   const providerCards = await Promise.all(
     COST_PROVIDERS.map((p) => buildProviderCard(p, now, warnings, fx?.rate ?? null)),
   );
-  const limitCards = await Promise.all(LIMIT_PROVIDERS.map((p) => buildLimitCard(p, now, warnings)));
+  const limitCards = await Promise.all(
+    LIMIT_PROVIDERS.map((p) => buildLimitCard(p, now, warnings)),
+  );
 
   const monthTotalJpy = providerCards.reduce((sum, c) => {
     if (!c.enabled) return sum;
@@ -240,10 +311,12 @@ export async function buildDashboard(now: Date = new Date()): Promise<DashboardR
     new Decimal(0),
   );
   const latestDayDate = providerCards.reduce<string | null>(
-    (latest, c) => (c.latestDayDate && (!latest || c.latestDayDate > latest) ? c.latestDayDate : latest),
+    (latest, c) =>
+      c.latestDayDate && (!latest || c.latestDayDate > latest) ? c.latestDayDate : latest,
     null,
   );
-  const budgetUsedPercent = budgetJpy > 0 ? monthTotalJpy.div(budgetJpy).mul(100).toDecimalPlaces(1).toNumber() : 0;
+  const budgetUsedPercent =
+    budgetJpy > 0 ? monthTotalJpy.div(budgetJpy).mul(100).toDecimalPlaces(1).toNumber() : 0;
 
   const subscriptions = await db.select().from(pushSubscriptions);
   const recentEvents = await db
@@ -259,12 +332,19 @@ export async function buildDashboard(now: Date = new Date()): Promise<DashboardR
     .sort((a, b) => b.getTime() - a.getTime())[0];
 
   for (const conn of allConnections) {
-    if (conn.enabled && conn.status === 'error' && conn.lastErrorAt && now.getTime() - conn.lastErrorAt.getTime() > 12 * 60 * 60 * 1000) {
+    if (
+      conn.enabled &&
+      conn.status === 'error' &&
+      conn.lastErrorAt &&
+      now.getTime() - conn.lastErrorAt.getTime() > 12 * 60 * 60 * 1000
+    ) {
       warnings.push(`${conn.provider}: 同期が12時間以上失敗しています`);
     }
   }
 
-  const webPushConfigured = Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+  const webPushConfigured = Boolean(
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY,
+  );
 
   return {
     latestDayTotalJpy: latestDayTotalJpy.toDecimalPlaces(0).toString(),
@@ -278,7 +358,9 @@ export async function buildDashboard(now: Date = new Date()): Promise<DashboardR
       fetchedAt: fx?.fetchedAt ? fx.fetchedAt.toISOString() : null,
     },
     providers: providerCards.filter((c) => c.enabled),
-    subscriptionLimits: limitCards.filter((c) => c.enabled),
+    subscriptionLimits: limitCards.filter(
+      (c) => c.enabled && c.source !== null && c.source !== 'manual',
+    ),
     notifications: {
       webPushEnabled: webPushConfigured && subscriptions.length > 0,
       subscriptionCount: subscriptions.length,

@@ -29,6 +29,14 @@ export const APP_SETTING_KEYS = {
   // vs "ChatGPT Pro"), editable since it can't be inferred from any API.
   openaiSubscriptionName: 'openaiSubscriptionName',
   anthropicSubscriptionName: 'anthropicSubscriptionName',
+  // Prepaid API-credit balances are not exposed by the usage-report APIs, so
+  // they are entered manually and shown on the corresponding dashboard card.
+  openaiRemainingCreditUsd: 'openaiRemainingCreditUsd',
+  anthropicRemainingCreditUsd: 'anthropicRemainingCreditUsd',
+  geminiRemainingCreditUsd: 'geminiRemainingCreditUsd',
+  // AI Studio has no public cost-reporting API. When its displayed monthly
+  // total differs from the Cloud Billing export, this value takes precedence.
+  geminiAiStudioMonthTotalJpy: 'geminiAiStudioMonthTotalJpy',
 } as const;
 
 export async function getAppSetting(key: string): Promise<string | null> {
