@@ -51,6 +51,12 @@ describe('sync engine: one provider failing does not block the others', () => {
     );
 
     expect(usageMetric.title).toBe('AI Usage Monitor');
+    expect(usageMetric.metrics.map((metric: { title: string }) => metric.title)).toEqual([
+      '今月',
+      'サブスク',
+      'API',
+      '最新反映日',
+    ]);
     expect(creditMetric.title).toBe('API 残クレジット');
     expect(creditMetric.metrics.map((metric: { title: string }) => metric.title)).toEqual([
       'OpenAI',

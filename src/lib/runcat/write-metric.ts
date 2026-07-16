@@ -31,6 +31,14 @@ function formatJpy(value: number): string {
 }
 
 function buildUsageMetric(dashboard: DashboardResponse, generatedAt: string): RunCatMetric {
+  const subscriptionTotalJpy = dashboard.providers.reduce(
+    (total, card) => total + (card.monthlySubscriptionJpy ?? 0),
+    0,
+  );
+  const apiTotalJpy = dashboard.providers.reduce(
+    (total, card) => total + Number(card.monthCostJpy ?? 0),
+    0,
+  );
   const todayLabel = dashboard.latestDayDate
     ? dashboard.latestDayDate.slice(5).replace('-', '/')
     : '未反映';
@@ -53,6 +61,14 @@ function buildUsageMetric(dashboard: DashboardResponse, generatedAt: string): Ru
         ...(dashboard.monthlyBudgetJpy > 0
           ? { normalizedValue: Math.min(dashboard.budgetUsedPercent / 100, 1) }
           : {}),
+      },
+      {
+        title: 'サブスク',
+        formattedValue: formatJpy(subscriptionTotalJpy),
+      },
+      {
+        title: 'API',
+        formattedValue: formatJpy(apiTotalJpy),
       },
       {
         title: '最新反映日',
