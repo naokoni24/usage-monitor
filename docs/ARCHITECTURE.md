@@ -16,6 +16,7 @@ Mac (Next.js 本番ビルド, launchdで常駐)
 │  ├─ currency          為替レート解決 (優先順位フォールバック)
 │  ├─ budget            月次予算の取得/更新
 │  ├─ notifications     通知ルール評価 + Web Push送信
+│  ├─ runcat           RunCat Neo用JSONスナップショット出力
 │  ├─ mock              モックモード用シナリオ生成
 │  ├─ scheduler         同期エンジン (リトライ/バックオフ) + 定期実行ループ
 │  └─ dashboard         ダッシュボードJSON組み立て
@@ -42,9 +43,12 @@ iPhone
    各プロバイダーの成功/失敗は `provider_connections` と `sync_runs` に記録される。
    1つのプロバイダーが失敗しても他のプロバイダーの同期は継続する (`Promise.allSettled`)。
    手動同期 (`POST /api/sync`, `npm run sync`) は両ループを1回ずつ即時実行する `runFullSync()` を使う。
-4. 各ループの同期後に `evaluateAndSendNotifications()` が現在のダッシュボード状態を計算し、
+4. コスト系同期の完了後、`src/lib/runcat/write-metric.ts` がダッシュボードと同じ集計結果から
+   `/Users/nao/.runcat/ai-usage.json` を生成する。表示値に変更がない場合は既存ファイルと更新時刻を
+   保持する。テストでは `RUNCAT_METRIC_FILE` を一時ファイルへ向け、本番のRunCat表示を上書きしない。
+5. 各ループの同期後に `evaluateAndSendNotifications()` が現在のダッシュボード状態を計算し、
    しきい値を超えた通知ルールについて Web Push を送信する (`notification_events` で月内の重複を防止)。
-5. ダッシュボード / iPhone PWA は `GET /api/dashboard` を呼び出し、上記のテーブルから
+6. ダッシュボード / iPhone PWA は `GET /api/dashboard` を呼び出し、上記のテーブルから
    組み立てられたJSONを表示する。
 
 ## 金額の扱い

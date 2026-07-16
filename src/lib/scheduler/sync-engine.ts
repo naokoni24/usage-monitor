@@ -1,7 +1,12 @@
 import 'server-only';
 import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/lib/database/client';
-import { providerConnections, usageDaily, subscriptionLimits, syncRuns } from '@/lib/database/schema';
+import {
+  providerConnections,
+  usageDaily,
+  subscriptionLimits,
+  syncRuns,
+} from '@/lib/database/schema';
 import type { Provider } from '@/lib/database/schema';
 import type { CostProviderOutcome, LimitProviderOutcome } from '@/lib/providers/types';
 import { withRetry } from './retry';
@@ -15,6 +20,7 @@ import { syncFxRateIfDue, resolveCurrentFxRate, convertToJpy } from '@/lib/curre
 import { syncMockFxRate } from '@/lib/mock/fx';
 import { isMockMode, getMockScenario } from '@/lib/mock/scenario';
 import { evaluateAndSendNotifications } from '@/lib/notifications/evaluate';
+import { writeRunCatMetric } from '@/lib/runcat/write-metric';
 
 const COST_PROVIDERS: Provider[] = ['openai', 'anthropic', 'gemini'];
 const LIMIT_PROVIDERS: Provider[] = ['codex', 'claude-code'];
@@ -37,7 +43,12 @@ async function ensureConnectionRow(provider: Provider): Promise<void> {
 
 async function markConnection(
   provider: Provider,
-  update: { status: string; lastSuccessAt?: Date; lastErrorAt?: Date; lastErrorMessage?: string | null },
+  update: {
+    status: string;
+    lastSuccessAt?: Date;
+    lastErrorAt?: Date;
+    lastErrorMessage?: string | null;
+  },
 ): Promise<void> {
   await ensureConnectionRow(provider);
   await db
@@ -81,7 +92,11 @@ async function syncOneProvider(
 
     const recordsUpdated = await persistResult(provider, result);
 
-    await markConnection(provider, { status: 'ok', lastSuccessAt: new Date(), lastErrorMessage: null });
+    await markConnection(provider, {
+      status: 'ok',
+      lastSuccessAt: new Date(),
+      lastErrorMessage: null,
+    });
     await db
       .update(syncRuns)
       .set({ finishedAt: new Date(), status: 'success', recordsUpdated })
@@ -89,7 +104,11 @@ async function syncOneProvider(
     logger.info('provider sync succeeded', { provider, recordsUpdated });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await markConnection(provider, { status: 'error', lastErrorAt: new Date(), lastErrorMessage: message });
+    await markConnection(provider, {
+      status: 'error',
+      lastErrorAt: new Date(),
+      lastErrorMessage: message,
+    });
     await db
       .update(syncRuns)
       .set({ finishedAt: new Date(), status: 'error', errorMessage: message })
@@ -103,21 +122,25 @@ async function persistResult(
   result: Extract<CostProviderOutcome | LimitProviderOutcome, { ok: true }>,
 ): Promise<number> {
   if ('days' in result) {
-  const fx = await resolveCurrentFxRate();
-  let updated = 0;
+    const fx = await resolveCurrentFxRate();
+    let updated = 0;
 
-  // A development mock sync may have populated rows before the real provider
-  // was configured. Those rows have a separate `source` key and would
-  // otherwise remain for dates that the real export does not yet cover,
-  // inflating the dashboard total by mixing simulated and actual costs.
-  if (result.source !== 'mock' && result.days.length > 0) {
-    await db
-      .delete(usageDaily)
-      .where(and(eq(usageDaily.provider, provider), eq(usageDaily.source, 'mock')));
-  }
+    // A development mock sync may have populated rows before the real provider
+    // was configured. Those rows have a separate `source` key and would
+    // otherwise remain for dates that the real export does not yet cover,
+    // inflating the dashboard total by mixing simulated and actual costs.
+    if (result.source !== 'mock' && result.days.length > 0) {
+      await db
+        .delete(usageDaily)
+        .where(and(eq(usageDaily.provider, provider), eq(usageDaily.source, 'mock')));
+    }
 
-  for (const day of result.days) {
-      const { costJpy, appliedRate } = convertToJpy(day.costOriginal, day.currencyOriginal, fx?.rate ?? null);
+    for (const day of result.days) {
+      const { costJpy, appliedRate } = convertToJpy(
+        day.costOriginal,
+        day.currencyOriginal,
+        fx?.rate ?? null,
+      );
       await db
         .insert(usageDaily)
         .values({
@@ -179,11 +202,18 @@ async function persistResult(
       const [previous] = await db
         .select()
         .from(subscriptionLimits)
-        .where(and(eq(subscriptionLimits.provider, provider), eq(subscriptionLimits.limitType, limit.limitType)))
+        .where(
+          and(
+            eq(subscriptionLimits.provider, provider),
+            eq(subscriptionLimits.limitType, limit.limitType),
+          ),
+        )
         .orderBy(desc(subscriptionLimits.collectedAt))
         .limit(1);
       const sameWindow =
-        previous?.resetAt && limit.resetAt && Math.abs(previous.resetAt.getTime() - limit.resetAt.getTime()) < 60_000;
+        previous?.resetAt &&
+        limit.resetAt &&
+        Math.abs(previous.resetAt.getTime() - limit.resetAt.getTime()) < 60_000;
       if (previous && sameWindow && limit.usedPercent < previous.usedPercent - 15) {
         logger.warn('ignored stale Codex limit after wake', {
           limitType: limit.limitType,
@@ -212,7 +242,9 @@ async function persistResult(
 
 async function notify(): Promise<void> {
   await evaluateAndSendNotifications().catch((err) =>
-    logger.error('notification evaluation failed', { error: err instanceof Error ? err.message : String(err) }),
+    logger.error('notification evaluation failed', {
+      error: err instanceof Error ? err.message : String(err),
+    }),
   );
 }
 
@@ -227,7 +259,9 @@ export async function syncCostProviders(): Promise<void> {
     await syncMockFxRate(await getMockScenario());
   } else {
     await syncFxRateIfDue().catch((err) =>
-      logger.warn('fx rate sync failed', { error: err instanceof Error ? err.message : String(err) }),
+      logger.warn('fx rate sync failed', {
+        error: err instanceof Error ? err.message : String(err),
+      }),
     );
   }
 
@@ -238,6 +272,14 @@ export async function syncCostProviders(): Promise<void> {
     syncOneProvider('claude-code', fetchClaudeCodeLimits),
   ]);
 
+  // Keep RunCat Neo tied to the completed database sync instead of polling the
+  // database from a separate launch agent (which cannot access Desktop under
+  // macOS privacy controls).
+  await writeRunCatMetric().catch((err) =>
+    logger.warn('RunCat metric update failed', {
+      error: err instanceof Error ? err.message : String(err),
+    }),
+  );
   await notify();
 }
 
