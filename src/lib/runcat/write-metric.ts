@@ -63,12 +63,8 @@ function buildUsageMetric(dashboard: DashboardResponse, generatedAt: string): Ru
           : {}),
       },
       {
-        title: 'サブスク',
-        formattedValue: formatJpy(subscriptionTotalJpy),
-      },
-      {
-        title: 'API',
-        formattedValue: formatJpy(apiTotalJpy),
+        title: 'サブスク / API',
+        formattedValue: `${formatJpy(subscriptionTotalJpy)} / ${formatJpy(apiTotalJpy)}`,
       },
       {
         title: '最新反映日',
