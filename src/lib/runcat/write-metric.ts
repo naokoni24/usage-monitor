@@ -1,6 +1,6 @@
 import 'server-only';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { buildDashboard } from '@/lib/dashboard/build-dashboard';
 import { logger } from '@/lib/logging/logger';
 import type { DashboardResponse, ProviderUsageCard } from '@/types/dashboard';
@@ -97,7 +97,7 @@ function buildCreditMetric(dashboard: DashboardResponse, generatedAt: string): R
   });
 
   return {
-    title: 'AI残クレジット',
+    title: 'API 残クレジット',
     symbol: 'creditcard',
     metricsBarValue: convertedCount > 0 ? formatJpy(totalJpy) : '未設定',
     metrics,
@@ -130,7 +130,10 @@ async function writeMetricIfChanged(output: string, metric: RunCatMetric): Promi
 
   const outputDirectory = dirname(/* turbopackIgnore: true */ output);
   await mkdir(outputDirectory, { recursive: true });
-  const temporary = join(outputDirectory, `.runcat-${process.pid}-${Date.now()}.json`);
+  const temporary = join(
+    outputDirectory,
+    `.runcat-${process.pid}-${Date.now()}-${basename(output)}`,
+  );
   await writeFile(temporary, JSON.stringify(metric), 'utf8');
   await rename(temporary, output);
   logger.info('RunCat metric written', { output });
