@@ -3,51 +3,109 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { buildDashboard } from '@/lib/dashboard/build-dashboard';
 import { logger } from '@/lib/logging/logger';
+import type { DashboardResponse, ProviderUsageCard } from '@/types/dashboard';
 
-const DEFAULT_OUTPUT = '/Users/nao/.runcat/ai-usage.json';
+const DEFAULT_USAGE_OUTPUT = '/Users/nao/.runcat/ai-usage.json';
+const DEFAULT_CREDIT_OUTPUT = '/Users/nao/.runcat/ai-credits.json';
 
-/**
- * Publish the same totals shown by the dashboard for RunCat Neo's custom
- * metric. This is deliberately called by the sync process, rather than a
- * separate polling job, so the menu-bar value changes as soon as the database
- * transaction has completed.
- */
-export async function writeRunCatMetric(): Promise<void> {
-  const output = process.env.RUNCAT_METRIC_FILE || DEFAULT_OUTPUT;
-  const dashboard = await buildDashboard();
+const PROVIDER_LABEL: Record<ProviderUsageCard['provider'], string> = {
+  openai: 'OpenAI',
+  anthropic: 'Claude API',
+  gemini: 'Gemini',
+};
+
+interface RunCatMetric {
+  title: string;
+  symbol: string;
+  metricsBarValue: string;
+  metrics: Array<{
+    title: string;
+    formattedValue: string;
+    normalizedValue?: number;
+  }>;
+  lastUpdatedDate: string;
+}
+
+function formatJpy(value: number): string {
+  return `¥${Math.round(value).toLocaleString('ja-JP')}`;
+}
+
+function buildUsageMetric(dashboard: DashboardResponse, generatedAt: string): RunCatMetric {
   const todayLabel = dashboard.latestDayDate
     ? dashboard.latestDayDate.slice(5).replace('-', '/')
     : '未反映';
   const budgetPart =
     dashboard.monthlyBudgetJpy > 0
-      ? ` / ¥${dashboard.monthlyBudgetJpy.toLocaleString('ja-JP')} (${Math.round(dashboard.budgetUsedPercent)}%)`
+      ? ` / ${formatJpy(dashboard.monthlyBudgetJpy)} (${Math.round(dashboard.budgetUsedPercent)}%)`
       : '';
-  const metric = {
+
+  return {
     title: 'AI Usage Monitor',
     symbol: 'yensign',
     metricsBarValue:
       dashboard.monthlyBudgetJpy > 0
         ? `${Math.round(dashboard.budgetUsedPercent)}%`
-        : `¥${Number(dashboard.latestDayTotalJpy).toLocaleString('ja-JP')}`,
+        : formatJpy(Number(dashboard.latestDayTotalJpy)),
     metrics: [
       {
         title: '今月',
-        formattedValue: `¥${Number(dashboard.monthTotalJpy).toLocaleString('ja-JP')}${budgetPart}`,
+        formattedValue: `${formatJpy(Number(dashboard.monthTotalJpy))}${budgetPart}`,
         ...(dashboard.monthlyBudgetJpy > 0
           ? { normalizedValue: Math.min(dashboard.budgetUsedPercent / 100, 1) }
           : {}),
       },
       {
         title: '最新反映日',
-        formattedValue: `¥${Number(dashboard.latestDayTotalJpy).toLocaleString('ja-JP')} (${todayLabel})`,
+        formattedValue: `${formatJpy(Number(dashboard.latestDayTotalJpy))} (${todayLabel})`,
       },
     ],
-    lastUpdatedDate: new Date().toISOString(),
+    lastUpdatedDate: generatedAt,
   };
+}
 
-  // A successful upstream check does not necessarily contain new billing
-  // data. In that case keep RunCat's prior snapshot (including its timestamp)
-  // so it truthfully represents the last reflected DB information.
+function buildCreditMetric(dashboard: DashboardResponse, generatedAt: string): RunCatMetric {
+  const usdJpyRate = dashboard.fxRate.rate ? Number(dashboard.fxRate.rate) : null;
+  let totalJpy = 0;
+  let convertedCount = 0;
+
+  const metrics = dashboard.providers.map((card) => {
+    const amount = card.remainingCreditOriginal ? Number(card.remainingCreditOriginal) : null;
+    if (amount === null || !Number.isFinite(amount) || !card.remainingCreditCurrency) {
+      return { title: PROVIDER_LABEL[card.provider], formattedValue: '未設定' };
+    }
+
+    if (card.remainingCreditCurrency === 'JPY') {
+      totalJpy += amount;
+      convertedCount++;
+      return { title: PROVIDER_LABEL[card.provider], formattedValue: formatJpy(amount) };
+    }
+
+    if (usdJpyRate && Number.isFinite(usdJpyRate) && usdJpyRate > 0) {
+      const amountJpy = amount * usdJpyRate;
+      totalJpy += amountJpy;
+      convertedCount++;
+      return {
+        title: PROVIDER_LABEL[card.provider],
+        formattedValue: `${formatJpy(amountJpy)} (USD ${card.remainingCreditOriginal})`,
+      };
+    }
+
+    return {
+      title: PROVIDER_LABEL[card.provider],
+      formattedValue: `USD ${card.remainingCreditOriginal}`,
+    };
+  });
+
+  return {
+    title: 'AI残クレジット',
+    symbol: 'creditcard',
+    metricsBarValue: convertedCount > 0 ? formatJpy(totalJpy) : '未設定',
+    metrics,
+    lastUpdatedDate: generatedAt,
+  };
+}
+
+async function writeMetricIfChanged(output: string, metric: RunCatMetric): Promise<void> {
   try {
     const existing = JSON.parse(
       await readFile(/* turbopackIgnore: true */ output, 'utf8'),
@@ -76,4 +134,20 @@ export async function writeRunCatMetric(): Promise<void> {
   await writeFile(temporary, JSON.stringify(metric), 'utf8');
   await rename(temporary, output);
   logger.info('RunCat metric written', { output });
+}
+
+/** Publish RunCat cards after cost or credit settings have changed. */
+export async function writeRunCatMetric(): Promise<void> {
+  const dashboard = await buildDashboard();
+  const generatedAt = new Date().toISOString();
+  await Promise.all([
+    writeMetricIfChanged(
+      process.env.RUNCAT_METRIC_FILE || DEFAULT_USAGE_OUTPUT,
+      buildUsageMetric(dashboard, generatedAt),
+    ),
+    writeMetricIfChanged(
+      process.env.RUNCAT_CREDIT_METRIC_FILE || DEFAULT_CREDIT_OUTPUT,
+      buildCreditMetric(dashboard, generatedAt),
+    ),
+  ]);
 }

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import fs from 'node:fs';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/database/client';
 import { providerConnections, syncRuns } from '@/lib/database/schema';
@@ -39,5 +40,22 @@ describe('sync engine: one provider failing does not block the others', () => {
 
     const anthropicRuns = await db.select().from(syncRuns).where(eq(syncRuns.provider, 'anthropic'));
     expect(anthropicRuns.at(-1)?.status).toBe('success');
+  });
+
+  it('writes RunCat usage and remaining-credit cards to isolated test files', async () => {
+    await runFullSync();
+
+    const usageMetric = JSON.parse(fs.readFileSync(process.env.RUNCAT_METRIC_FILE!, 'utf8'));
+    const creditMetric = JSON.parse(
+      fs.readFileSync(process.env.RUNCAT_CREDIT_METRIC_FILE!, 'utf8'),
+    );
+
+    expect(usageMetric.title).toBe('AI Usage Monitor');
+    expect(creditMetric.title).toBe('AI残クレジット');
+    expect(creditMetric.metrics.map((metric: { title: string }) => metric.title)).toEqual([
+      'OpenAI',
+      'Claude API',
+      'Gemini',
+    ]);
   });
 });

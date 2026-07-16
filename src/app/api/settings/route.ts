@@ -8,6 +8,8 @@ import { getMonthlyBudgetJpy, setMonthlyBudgetJpy } from '@/lib/budget/monthly-b
 import { saveManualFxRate, resolveCurrentFxRate } from '@/lib/currency/resolve';
 import { setAppSetting, getAllAppSettings, APP_SETTING_KEYS } from '@/lib/database/app-settings';
 import { tokyoYearMonth } from '@/lib/date/tokyo';
+import { writeRunCatMetric } from '@/lib/runcat/write-metric';
+import { logger } from '@/lib/logging/logger';
 
 export async function GET() {
   const unauthorized = await requireSession();
@@ -254,6 +256,18 @@ export async function PUT(request: NextRequest) {
     await setAppSetting(
       APP_SETTING_KEYS.geminiAiStudioMonthTotalJpy,
       data.geminiAiStudioMonthTotalJpy,
+    );
+  }
+
+  const remainingCreditChanged =
+    data.openaiRemainingCreditUsd !== undefined ||
+    data.anthropicRemainingCreditUsd !== undefined ||
+    data.geminiRemainingCreditJpy !== undefined;
+  if (remainingCreditChanged) {
+    await writeRunCatMetric().catch((err) =>
+      logger.warn('RunCat credit metric update failed', {
+        error: err instanceof Error ? err.message : String(err),
+      }),
     );
   }
 
