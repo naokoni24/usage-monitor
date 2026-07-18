@@ -33,9 +33,9 @@ export interface ProviderUsageCard {
   /** User-editable plan name (e.g. "ChatGPT Plus"), since plan tiers vary per account. */
   monthlySubscriptionName: string | null;
   /**
-   * Prepaid API-credit balance, manually entered in settings because usage APIs do not expose it.
-   * `remainingCreditCurrency` is USD for OpenAI/Anthropic, JPY for Gemini (topped up in JPY for
-   * JP accounts) - null means none has been set.
+   * Prepaid API-credit balance. OpenAI/Anthropic values are manually entered; Gemini starts from
+   * the manually entered AI Studio balance and subtracts subsequent synced usage. Currency is USD
+   * for OpenAI/Anthropic and JPY for Gemini - null means none has been set.
    */
   remainingCreditOriginal: string | null;
   remainingCreditCurrency: 'USD' | 'JPY' | null;

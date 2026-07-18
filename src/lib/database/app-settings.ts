@@ -33,9 +33,17 @@ export const APP_SETTING_KEYS = {
   // they are entered manually and shown on the corresponding dashboard card.
   openaiRemainingCreditUsd: 'openaiRemainingCreditUsd',
   anthropicRemainingCreditUsd: 'anthropicRemainingCreditUsd',
+  // Cumulative OpenAI/Anthropic API usage (USD) when the balance above was last
+  // entered - later cost-sync deltas are subtracted from it, same mechanism as
+  // geminiRemainingCreditBaselineUsageJpy below.
+  openaiRemainingCreditBaselineUsageUsd: 'openaiRemainingCreditBaselineUsageUsd',
+  anthropicRemainingCreditBaselineUsageUsd: 'anthropicRemainingCreditBaselineUsageUsd',
   // Gemini/AI Studio credit is typically topped up in JPY for JP accounts, so unlike
   // the other two this is entered and stored directly in JPY (no FX conversion needed).
   geminiRemainingCreditJpy: 'geminiRemainingCreditJpy',
+  // Cumulative Gemini API usage when the user last entered the real AI Studio balance.
+  // Later API-cost deltas are subtracted from that balance without double-counting syncs.
+  geminiRemainingCreditBaselineUsageJpy: 'geminiRemainingCreditBaselineUsageJpy',
   // AI Studio has no public cost-reporting API. When its displayed monthly
   // total differs from the Cloud Billing export, this value takes precedence.
   geminiAiStudioMonthTotalJpy: 'geminiAiStudioMonthTotalJpy',

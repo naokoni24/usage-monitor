@@ -10,6 +10,7 @@ import { setAppSetting, getAllAppSettings, APP_SETTING_KEYS } from '@/lib/databa
 import { tokyoYearMonth } from '@/lib/date/tokyo';
 import { writeRunCatMetric } from '@/lib/runcat/write-metric';
 import { logger } from '@/lib/logging/logger';
+import { getGeminiCumulativeUsageJpy, getCumulativeUsageUsd } from '@/lib/credits/gemini-credit';
 
 export async function GET() {
   const unauthorized = await requireSession();
@@ -241,16 +242,28 @@ export async function PUT(request: NextRequest) {
     await setAppSetting(APP_SETTING_KEYS.anthropicSubscriptionName, data.anthropicSubscriptionName);
   }
   if (data.openaiRemainingCreditUsd !== undefined) {
-    await setAppSetting(APP_SETTING_KEYS.openaiRemainingCreditUsd, data.openaiRemainingCreditUsd);
+    const baselineUsageUsd =
+      data.openaiRemainingCreditUsd.trim() === '' ? '' : await getCumulativeUsageUsd('openai');
+    await Promise.all([
+      setAppSetting(APP_SETTING_KEYS.openaiRemainingCreditUsd, data.openaiRemainingCreditUsd),
+      setAppSetting(APP_SETTING_KEYS.openaiRemainingCreditBaselineUsageUsd, baselineUsageUsd),
+    ]);
   }
   if (data.anthropicRemainingCreditUsd !== undefined) {
-    await setAppSetting(
-      APP_SETTING_KEYS.anthropicRemainingCreditUsd,
-      data.anthropicRemainingCreditUsd,
-    );
+    const baselineUsageUsd =
+      data.anthropicRemainingCreditUsd.trim() === '' ? '' : await getCumulativeUsageUsd('anthropic');
+    await Promise.all([
+      setAppSetting(APP_SETTING_KEYS.anthropicRemainingCreditUsd, data.anthropicRemainingCreditUsd),
+      setAppSetting(APP_SETTING_KEYS.anthropicRemainingCreditBaselineUsageUsd, baselineUsageUsd),
+    ]);
   }
   if (data.geminiRemainingCreditJpy !== undefined) {
-    await setAppSetting(APP_SETTING_KEYS.geminiRemainingCreditJpy, data.geminiRemainingCreditJpy);
+    const baselineUsageJpy =
+      data.geminiRemainingCreditJpy.trim() === '' ? '' : await getGeminiCumulativeUsageJpy();
+    await Promise.all([
+      setAppSetting(APP_SETTING_KEYS.geminiRemainingCreditJpy, data.geminiRemainingCreditJpy),
+      setAppSetting(APP_SETTING_KEYS.geminiRemainingCreditBaselineUsageJpy, baselineUsageJpy),
+    ]);
   }
   if (data.geminiAiStudioMonthTotalJpy !== undefined) {
     await setAppSetting(

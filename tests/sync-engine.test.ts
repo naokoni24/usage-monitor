@@ -38,7 +38,10 @@ describe('sync engine: one provider failing does not block the others', () => {
     expect(runs.length).toBeGreaterThan(0);
     expect(runs.at(-1)?.status).toBe('error');
 
-    const anthropicRuns = await db.select().from(syncRuns).where(eq(syncRuns.provider, 'anthropic'));
+    const anthropicRuns = await db
+      .select()
+      .from(syncRuns)
+      .where(eq(syncRuns.provider, 'anthropic'));
     expect(anthropicRuns.at(-1)?.status).toBe('success');
   });
 
@@ -54,9 +57,10 @@ describe('sync engine: one provider failing does not block the others', () => {
     expect(usageMetric.metrics.map((metric: { title: string }) => metric.title)).toEqual([
       '今月',
       'サブスク / API',
-      '最新反映日',
+      expect.stringMatching(/^\(\d{1,2}\/\d{1,2}$/),
     ]);
-    expect(creditMetric.title).toBe('API 残クレジット');
+    expect(usageMetric.metrics[2].formattedValue).toMatch(/^¥[\d,]+\)$/);
+    expect(creditMetric.title).toBe('API Usage');
     expect(creditMetric.metrics.map((metric: { title: string }) => metric.title)).toEqual([
       'OpenAI',
       'Claude API',

@@ -421,7 +421,9 @@ export default function SettingsPage() {
 
       <Section title="API残クレジット">
         <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-          利用料APIでは残高を取得できないため、各サービスのコンソールに表示される残クレジットを入力してください(OpenAI/Claudeは USD、Geminiは 円)。空欄のままならダッシュボードには「未設定」と表示されます。
+          利用料APIでは残高を取得できないため、各サービスのコンソールに表示される残クレジットを入力してください(OpenAI/Claudeは
+          USD、Geminiは 円)。空欄のままならダッシュボードには「未設定」と表示されます。
+          Geminiは入力時点の残高を基準に、その後同期された利用料金の増分を自動で差し引きます。
         </p>
         <Field label="OpenAI 残クレジット (USD)">
           <input

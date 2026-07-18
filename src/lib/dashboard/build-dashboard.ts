@@ -13,6 +13,7 @@ import {
 import { getMonthlyBudgetJpy } from '@/lib/budget/monthly-budget';
 import { resolveCurrentFxRate, convertUsdToJpy } from '@/lib/currency/resolve';
 import { getAppSetting, APP_SETTING_KEYS } from '@/lib/database/app-settings';
+import { getEstimatedGeminiRemainingCredit, getEstimatedRemainingCreditUsd } from '@/lib/credits/gemini-credit';
 import {
   formatTokyoDate,
   tokyoMonthStart,
@@ -97,20 +98,15 @@ const NO_REMAINING_CREDIT: RemainingCredit = { original: null, currency: null };
 async function getRemainingCredit(
   provider: (typeof COST_PROVIDERS)[number],
 ): Promise<RemainingCredit> {
-  const [key, currency]: [string, 'USD' | 'JPY'] =
-    provider === 'openai'
-      ? [APP_SETTING_KEYS.openaiRemainingCreditUsd, 'USD']
-      : provider === 'anthropic'
-        ? [APP_SETTING_KEYS.anthropicRemainingCreditUsd, 'USD']
-        : [APP_SETTING_KEYS.geminiRemainingCreditJpy, 'JPY'];
-  const raw = await getAppSetting(key);
-  if (raw === null || raw.trim() === '') return NO_REMAINING_CREDIT;
-  try {
-    const value = new Decimal(raw);
-    return value.isFinite() && value.gte(0) ? { original: value.toString(), currency } : NO_REMAINING_CREDIT;
-  } catch {
-    return NO_REMAINING_CREDIT;
+  if (provider === 'gemini') {
+    const estimatedCredit = await getEstimatedGeminiRemainingCredit();
+    return estimatedCredit === null
+      ? NO_REMAINING_CREDIT
+      : { original: estimatedCredit, currency: 'JPY' };
   }
+
+  const estimatedCredit = await getEstimatedRemainingCreditUsd(provider);
+  return estimatedCredit === null ? NO_REMAINING_CREDIT : { original: estimatedCredit, currency: 'USD' };
 }
 
 async function getGeminiAiStudioMonthTotalJpy(): Promise<string | null> {

@@ -39,8 +39,12 @@ function buildUsageMetric(dashboard: DashboardResponse, generatedAt: string): Ru
     (total, card) => total + Number(card.monthCostJpy ?? 0),
     0,
   );
-  const todayLabel = dashboard.latestDayDate
-    ? dashboard.latestDayDate.slice(5).replace('-', '/')
+  const latestDayLabel = dashboard.latestDayDate
+    ? dashboard.latestDayDate
+        .split('-')
+        .slice(1)
+        .map((part) => Number(part))
+        .join('/')
     : '未反映';
   const budgetPart =
     dashboard.monthlyBudgetJpy > 0
@@ -67,8 +71,8 @@ function buildUsageMetric(dashboard: DashboardResponse, generatedAt: string): Ru
         formattedValue: `${formatJpy(subscriptionTotalJpy)} / ${formatJpy(apiTotalJpy)}`,
       },
       {
-        title: '最新反映日',
-        formattedValue: `${formatJpy(Number(dashboard.latestDayTotalJpy))} (${todayLabel})`,
+        title: `(${latestDayLabel}`,
+        formattedValue: `${formatJpy(Number(dashboard.latestDayTotalJpy))})`,
       },
     ],
     lastUpdatedDate: generatedAt,
@@ -80,39 +84,53 @@ function buildCreditMetric(dashboard: DashboardResponse, generatedAt: string): R
   let totalJpy = 0;
   let convertedCount = 0;
 
-  const metrics = dashboard.providers.map((card) => {
+  const providerMetrics = dashboard.providers.map((card) => {
+    const monthUsageJpy = Number(card.monthCostJpy ?? 0);
     const amount = card.remainingCreditOriginal ? Number(card.remainingCreditOriginal) : null;
     if (amount === null || !Number.isFinite(amount) || !card.remainingCreditCurrency) {
-      return { title: PROVIDER_LABEL[card.provider], formattedValue: '未設定' };
-    }
-
-    if (card.remainingCreditCurrency === 'JPY') {
-      totalJpy += amount;
-      convertedCount++;
-      return { title: PROVIDER_LABEL[card.provider], formattedValue: formatJpy(amount) };
-    }
-
-    if (usdJpyRate && Number.isFinite(usdJpyRate) && usdJpyRate > 0) {
-      const amountJpy = amount * usdJpyRate;
-      totalJpy += amountJpy;
-      convertedCount++;
       return {
         title: PROVIDER_LABEL[card.provider],
-        formattedValue: `${formatJpy(amountJpy)} (USD ${card.remainingCreditOriginal})`,
+        formattedValue: `使用 ${formatJpy(monthUsageJpy)} / 残 未設定`,
       };
     }
 
+    let remainingJpy: number | null = null;
+    let originalCurrencySuffix = '';
+    if (card.remainingCreditCurrency === 'JPY') {
+      remainingJpy = amount;
+    } else if (usdJpyRate && Number.isFinite(usdJpyRate) && usdJpyRate > 0) {
+      remainingJpy = amount * usdJpyRate;
+      originalCurrencySuffix = ` · USD ${card.remainingCreditOriginal}`;
+    }
+
+    if (remainingJpy === null) {
+      return {
+        title: PROVIDER_LABEL[card.provider],
+        formattedValue: `使用 ${formatJpy(monthUsageJpy)} / USD ${card.remainingCreditOriginal}`,
+      };
+    }
+
+    totalJpy += remainingJpy;
+    convertedCount++;
+    const availableCreditJpy = monthUsageJpy + remainingJpy;
+    const usagePercent = availableCreditJpy > 0 ? (monthUsageJpy / availableCreditJpy) * 100 : null;
     return {
       title: PROVIDER_LABEL[card.provider],
-      formattedValue: `USD ${card.remainingCreditOriginal}`,
+      formattedValue:
+        usagePercent === null
+          ? `使用 ${formatJpy(monthUsageJpy)} / 残 ${formatJpy(remainingJpy)}${originalCurrencySuffix}`
+          : `使用 ${formatJpy(monthUsageJpy)} / 残 ${formatJpy(remainingJpy)} (${Math.round(usagePercent)}%)${originalCurrencySuffix}`,
+      ...(usagePercent === null
+        ? {}
+        : { normalizedValue: Math.min(Math.max(usagePercent / 100, 0), 1) }),
     };
   });
 
   return {
-    title: 'API 残クレジット',
+    title: 'API Usage',
     symbol: 'creditcard',
     metricsBarValue: convertedCount > 0 ? formatJpy(totalJpy) : '未設定',
-    metrics,
+    metrics: providerMetrics,
     lastUpdatedDate: generatedAt,
   };
 }
