@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "dev",
-      "runtimeExecutable": "npm",
+      "runtimeExecutable": "/Users/nao/Desktop/projects/usage-monitor/.claude/dev-with-node.sh",
       "runtimeArgs": ["run", "dev"],
       "port": 3000,
       "autoPort": true

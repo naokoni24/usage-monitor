@@ -29,6 +29,29 @@ export const APP_SETTING_KEYS = {
   // vs "ChatGPT Pro"), editable since it can't be inferred from any API.
   openaiSubscriptionName: 'openaiSubscriptionName',
   anthropicSubscriptionName: 'anthropicSubscriptionName',
+  // Prepaid API-credit balances are not exposed by the usage-report APIs, so
+  // they are entered manually and shown on the corresponding dashboard card.
+  openaiRemainingCreditUsd: 'openaiRemainingCreditUsd',
+  anthropicRemainingCreditUsd: 'anthropicRemainingCreditUsd',
+  // Cumulative OpenAI/Anthropic API usage (USD) when the balance above was last
+  // entered - later cost-sync deltas are subtracted from it, same mechanism as
+  // geminiRemainingCreditBaselineUsageJpy below.
+  openaiRemainingCreditBaselineUsageUsd: 'openaiRemainingCreditBaselineUsageUsd',
+  anthropicRemainingCreditBaselineUsageUsd: 'anthropicRemainingCreditBaselineUsageUsd',
+  // Gemini/AI Studio credit is typically topped up in JPY for JP accounts, so unlike
+  // the other two this is entered and stored directly in JPY (no FX conversion needed).
+  geminiRemainingCreditJpy: 'geminiRemainingCreditJpy',
+  // Cumulative Gemini API usage when the user last entered the real AI Studio balance.
+  // Later API-cost deltas are subtracted from that balance without double-counting syncs.
+  geminiRemainingCreditBaselineUsageJpy: 'geminiRemainingCreditBaselineUsageJpy',
+  // AI Studio has no public cost-reporting API. When its displayed monthly
+  // total differs from the Cloud Billing export, this value takes precedence.
+  geminiAiStudioMonthTotalJpy: 'geminiAiStudioMonthTotalJpy',
+  // Tokyo year-month (YYYY-MM) the value above was entered for. Once the
+  // current month moves past this, the override is stale (it described a
+  // month that has already ended) and must be ignored rather than bleeding
+  // into the new month's total.
+  geminiAiStudioMonthTotalYearMonth: 'geminiAiStudioMonthTotalYearMonth',
 } as const;
 
 export async function getAppSetting(key: string): Promise<string | null> {

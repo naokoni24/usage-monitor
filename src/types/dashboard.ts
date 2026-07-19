@@ -16,6 +16,8 @@ export interface ProviderUsageCard {
   latestDayCostJpy: string | null;
   monthCostOriginal: string | null;
   monthCostJpy: string | null;
+  /** True when Gemini's monthly cost is manually entered from AI Studio. */
+  monthCostManuallyEntered: boolean;
   currencyOriginal: string | null;
   /**
    * Flat monthly subscription fee (ChatGPT Plus/Pro, Claude Pro/Max, etc.),
@@ -30,6 +32,13 @@ export interface ProviderUsageCard {
   monthlySubscriptionCurrency: string | null;
   /** User-editable plan name (e.g. "ChatGPT Plus"), since plan tiers vary per account. */
   monthlySubscriptionName: string | null;
+  /**
+   * Prepaid API-credit balance. OpenAI/Anthropic values are manually entered; Gemini starts from
+   * the manually entered AI Studio balance and subtracts subsequent synced usage. Currency is USD
+   * for OpenAI/Anthropic and JPY for Gemini - null means none has been set.
+   */
+  remainingCreditOriginal: string | null;
+  remainingCreditCurrency: 'USD' | 'JPY' | null;
   inputTokens: number | null;
   outputTokens: number | null;
   requestCount: number | null;
