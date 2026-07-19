@@ -47,6 +47,11 @@ export const APP_SETTING_KEYS = {
   // AI Studio has no public cost-reporting API. When its displayed monthly
   // total differs from the Cloud Billing export, this value takes precedence.
   geminiAiStudioMonthTotalJpy: 'geminiAiStudioMonthTotalJpy',
+  // Tokyo year-month (YYYY-MM) the value above was entered for. Once the
+  // current month moves past this, the override is stale (it described a
+  // month that has already ended) and must be ignored rather than bleeding
+  // into the new month's total.
+  geminiAiStudioMonthTotalYearMonth: 'geminiAiStudioMonthTotalYearMonth',
 } as const;
 
 export async function getAppSetting(key: string): Promise<string | null> {

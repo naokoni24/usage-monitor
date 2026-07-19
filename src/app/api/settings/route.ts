@@ -266,10 +266,13 @@ export async function PUT(request: NextRequest) {
     ]);
   }
   if (data.geminiAiStudioMonthTotalJpy !== undefined) {
-    await setAppSetting(
-      APP_SETTING_KEYS.geminiAiStudioMonthTotalJpy,
-      data.geminiAiStudioMonthTotalJpy,
-    );
+    await Promise.all([
+      setAppSetting(APP_SETTING_KEYS.geminiAiStudioMonthTotalJpy, data.geminiAiStudioMonthTotalJpy),
+      setAppSetting(
+        APP_SETTING_KEYS.geminiAiStudioMonthTotalYearMonth,
+        data.geminiAiStudioMonthTotalJpy.trim() === '' ? '' : tokyoYearMonth(),
+      ),
+    ]);
   }
 
   const remainingCreditChanged =

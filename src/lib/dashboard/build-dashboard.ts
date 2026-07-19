@@ -109,9 +109,15 @@ async function getRemainingCredit(
   return estimatedCredit === null ? NO_REMAINING_CREDIT : { original: estimatedCredit, currency: 'USD' };
 }
 
-async function getGeminiAiStudioMonthTotalJpy(): Promise<string | null> {
-  const raw = await getAppSetting(APP_SETTING_KEYS.geminiAiStudioMonthTotalJpy);
+async function getGeminiAiStudioMonthTotalJpy(now: Date): Promise<string | null> {
+  const [raw, enteredForYearMonth] = await Promise.all([
+    getAppSetting(APP_SETTING_KEYS.geminiAiStudioMonthTotalJpy),
+    getAppSetting(APP_SETTING_KEYS.geminiAiStudioMonthTotalYearMonth),
+  ]);
   if (raw === null || raw.trim() === '') return null;
+  // Entered for a month that has already ended (or predates this tagging
+  // feature, i.e. no tag at all) - stale, don't let it bleed into this month.
+  if (enteredForYearMonth !== tokyoYearMonth(now)) return null;
   try {
     const value = new Decimal(raw);
     return value.isFinite() && value.gte(0) ? value.toDecimalPlaces(2).toString() : null;
@@ -190,7 +196,7 @@ async function buildProviderCard(
   const [subscriptionFee, remainingCredit, geminiAiStudioMonthTotalJpy] = await Promise.all([
     getMonthlySubscriptionFee(provider, usdJpyRate),
     getRemainingCredit(provider),
-    provider === 'gemini' ? getGeminiAiStudioMonthTotalJpy() : Promise.resolve(null),
+    provider === 'gemini' ? getGeminiAiStudioMonthTotalJpy(now) : Promise.resolve(null),
   ]);
   const monthCostManuallyEntered = geminiAiStudioMonthTotalJpy !== null;
 

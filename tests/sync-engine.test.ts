@@ -56,10 +56,10 @@ describe('sync engine: one provider failing does not block the others', () => {
     expect(usageMetric.title).toBe('AI Usage Monitor');
     expect(usageMetric.metrics.map((metric: { title: string }) => metric.title)).toEqual([
       '今月',
-      'サブスク / API',
-      expect.stringMatching(/^\(\d{1,2}\/\d{1,2}$/),
+      'サブスク',
+      'API',
     ]);
-    expect(usageMetric.metrics[2].formattedValue).toMatch(/^¥[\d,]+\)$/);
+    expect(usageMetric.metrics[2].formattedValue).toMatch(/^¥[\d,]+ \(\d{1,2}\/\d{1,2}: ¥[\d,]+\)$/);
     expect(creditMetric.title).toBe('API Usage');
     expect(creditMetric.metrics.map((metric: { title: string }) => metric.title)).toEqual([
       'OpenAI',
